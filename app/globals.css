@@ -957,6 +957,131 @@ a:focus-visible {
   margin: 0 auto;
 }
 
+.detail-loading {
+  display: flex;
+  min-height: 60vh;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 18px;
+  color: var(--secondary);
+}
+
+.detail-type-pill {
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: var(--surface-muted);
+  color: var(--secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.detail-canvas {
+  padding-bottom: 56px;
+}
+
+.detail-title {
+  max-width: 680px;
+  margin: 0;
+  font-size: clamp(34px, 5vw, 52px);
+  font-weight: 740;
+  letter-spacing: -0.052em;
+  line-height: 1.12;
+}
+
+.detail-lead {
+  margin: 24px 0 52px;
+  color: var(--secondary);
+  font-family: Georgia, "Songti SC", serif;
+  font-size: 17px;
+  line-height: 1.9;
+  white-space: pre-wrap;
+}
+
+.detail-metadata {
+  margin-top: 42px;
+}
+
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.detail-tags span {
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--secondary);
+  font-size: 11px;
+}
+
+.detail-sections {
+  display: grid;
+  gap: 22px;
+}
+
+.detail-section {
+  display: grid;
+  grid-template-columns: 155px 1fr;
+  gap: 20px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.detail-section p {
+  margin: 0;
+  color: var(--secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.detail-section p b {
+  margin-right: 12px;
+  color: var(--tertiary);
+  font-size: 9px;
+}
+
+.detail-section div {
+  font-size: 14px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.detail-images .image-card figcaption {
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.detail-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 44px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.detail-footer small {
+  color: var(--tertiary);
+  font-size: 10px;
+}
+
+.detail-status {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--secondary);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.detail-status.complete {
+  background: var(--mint-soft);
+  color: var(--mint);
+}
+
 .entry-kicker {
   margin-bottom: 14px;
 }
@@ -1781,6 +1906,26 @@ a:focus-visible {
 
   .title-input {
     font-size: 36px;
+  }
+
+  .detail-title {
+    font-size: 38px;
+  }
+
+  .detail-lead {
+    margin-bottom: 38px;
+    font-size: 16px;
+  }
+
+  .detail-section {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .detail-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
   }
 
   .lead-input {

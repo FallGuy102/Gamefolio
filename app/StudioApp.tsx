@@ -179,6 +179,31 @@ export function StudioApp({
   }, [loadData, syncOfflineDrafts]);
 
   useEffect(() => {
+    const syncViewFromUrl = () => {
+      const path = window.location.pathname;
+      if (path === "/") {
+        setView("home");
+        setSelectedEntryId(undefined);
+      } else if (path === "/library") {
+        setView("library");
+        setSelectedEntryId(undefined);
+      } else if (path === "/settings") {
+        setView("settings");
+        setSelectedEntryId(undefined);
+      } else if (path.startsWith("/entries/")) {
+        setView("editor");
+        const id = path.split("/")[2];
+        setSelectedEntryId(id === "new" ? undefined : id);
+      } else if (path.startsWith("/games/")) {
+        setView("game");
+        setSelectedGameId(path.split("/")[2]);
+      }
+    };
+    window.addEventListener("popstate", syncViewFromUrl);
+    return () => window.removeEventListener("popstate", syncViewFromUrl);
+  }, []);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 3200);
     return () => window.clearTimeout(timer);
@@ -290,7 +315,20 @@ export function StudioApp({
             }}
           />
         )}
-        {view === "editor" && (
+        {view === "editor" && selectedEntryId && loading && !selectedEntry && (
+          <div className="page detail-loading" role="status">
+            正在载入条目…
+          </div>
+        )}
+        {view === "editor" && selectedEntryId && !loading && !selectedEntry && (
+          <div className="page detail-loading">
+            <strong>没有找到这条记录</strong>
+            <button className="secondary-button" onClick={() => navigate("library")}>
+              返回资料库
+            </button>
+          </div>
+        )}
+        {view === "editor" && (!selectedEntryId || selectedEntry) && (
           <Editor
             key={
               selectedEntryId ??
@@ -308,6 +346,7 @@ export function StudioApp({
             }
             games={games}
             online={online}
+            onBack={() => navigate("library")}
             onSaved={(savedEntry) => {
               setEntries((current) => [
                 savedEntry,
@@ -645,6 +684,7 @@ function Editor({
   defaultType,
   games,
   online,
+  onBack,
   onSaved,
   onDeleted,
   onGameCreated,
@@ -654,6 +694,7 @@ function Editor({
   defaultType: EntryType;
   games: Game[];
   online: boolean;
+  onBack: () => void;
   onSaved: (entry: Entry) => void;
   onDeleted: (id: string) => void;
   onGameCreated: (game: Game) => void;
@@ -684,6 +725,7 @@ function Editor({
       : emptyInput(defaultType),
   );
   const [entryId, setEntryId] = useState(entry?.id);
+  const [editing, setEditing] = useState(!entry);
   const [images, setImages] = useState<EntryImage[]>(entry?.images ?? []);
   const [tagText, setTagText] = useState(entry?.tags.join("，") ?? "");
   const [syncState, setSyncState] = useState<SyncState>("saved");
@@ -771,6 +813,7 @@ function Editor({
 
   useEffect(() => {
     window.clearTimeout(saveTimer.current);
+    if (!editing) return;
     if (!payload.title.trim() && !payload.body.trim()) return;
     saveTimer.current = window.setTimeout(() => void save(true), 1400);
     return () => window.clearTimeout(saveTimer.current);
@@ -780,6 +823,7 @@ function Editor({
     payload.designTheme,
     payload.favorite,
     tagText,
+    editing,
     save,
   ]);
 
@@ -875,12 +919,126 @@ function Editor({
     setShareDialog(true);
   };
 
+  const copyShareLink = async () => {
+    if (!entryId) return;
+    const result = await api<{ path: string }>("/api/shares", {
+      method: "POST",
+      body: JSON.stringify({ entryId }),
+    });
+    const url = `${location.origin}${result.path}`;
+    await navigator.clipboard.writeText(url);
+    onToast("只读分享链接已复制");
+  };
+
+  if (!editing && entryId) {
+    return (
+      <div className="page editor-page detail-page">
+        <header className="editor-header">
+          <button className="back-button" onClick={onBack} aria-label="返回资料库">
+            ←
+          </button>
+          <div className="detail-type-pill">
+            {draft.type === "idea" ? "✦ 灵感" : "◉ 游戏复盘"}
+          </div>
+          <div className="editor-actions">
+            <button className="secondary-button" onClick={() => void copyShareLink()}>
+              分享
+            </button>
+            <button className="primary-button" onClick={() => setEditing(true)}>
+              编辑
+            </button>
+          </div>
+        </header>
+
+        <article className="editor-canvas detail-canvas">
+          <p className="entry-kicker">
+            {draft.type === "idea" ? "DESIGN IDEA" : "GAME REVIEW"}
+          </p>
+          <h1 className="detail-title">{draft.title || "未命名灵感"}</h1>
+          {draft.body && <p className="detail-lead">{draft.body}</p>}
+
+          {(selectedGame || draft.designTheme || payload.tags?.length) && (
+            <section className="metadata-panel detail-metadata" aria-label="分类信息">
+              {selectedGame && (
+                <div>
+                  <small>关联游戏</small>
+                  <strong>{selectedGame.name}</strong>
+                </div>
+              )}
+              {draft.designTheme && (
+                <div>
+                  <small>设计主题</small>
+                  <strong>{draft.designTheme}</strong>
+                </div>
+              )}
+              {!!payload.tags?.length && (
+                <div className="wide-field">
+                  <small>标签</small>
+                  <div className="detail-tags">
+                    {payload.tags.map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {!!draft.sections?.filter((section) => section.content.trim()).length && (
+            <section className="detail-sections">
+              <div className="content-divider">
+                <span>复盘笔记</span>
+                <small>{draft.sections.filter((section) => section.content.trim()).length} 个部分</small>
+              </div>
+              {draft.sections
+                .filter((section) => section.content.trim())
+                .map((section, index) => (
+                  <section className="detail-section" key={section.kind}>
+                    <p>
+                      <b>{String(index + 1).padStart(2, "0")}</b>
+                      {sectionLabels[section.kind] ?? section.kind}
+                    </p>
+                    <div>{section.content}</div>
+                  </section>
+                ))}
+            </section>
+          )}
+
+          {!!images.length && (
+            <section className="image-section">
+              <div className="content-divider">
+                <span>图片资料</span>
+                <small>{images.length} 张</small>
+              </div>
+              <div className="image-grid detail-images">
+                {images.map((image) => (
+                  <figure className="image-card" key={image.id}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={image.url} alt={image.caption || image.fileName} />
+                    {image.caption && <figcaption>{image.caption}</figcaption>}
+                  </figure>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <footer className="detail-footer">
+            <span className={`detail-status ${draft.status}`}>
+              {draft.status === "complete" ? "已完成" : "草稿"}
+            </span>
+            <small>最后更新于 {entry ? formatDate(entry.updatedAt) : "刚刚"}</small>
+          </footer>
+        </article>
+      </div>
+    );
+  }
+
   return (
     <div className="page editor-page">
       <header className="editor-header">
         <button
           className="back-button"
-          onClick={() => history.back()}
+          onClick={onBack}
           aria-label="返回"
         >
           ←
@@ -926,7 +1084,13 @@ function Editor({
           <button className="secondary-button" onClick={createShare}>
             分享
           </button>
-          <button className="primary-button" onClick={() => void save()}>
+          <button
+            className="primary-button"
+            onClick={async () => {
+              const saved = await save();
+              if (saved) setEditing(false);
+            }}
+          >
             完成
           </button>
         </div>

@@ -27,6 +27,7 @@ test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => 
   assert.match(manifest, /display:\s*"standalone"/);
   assert.match(serviceWorker, /gamefolio-v1/);
   assert.match(source, /IndexedDB|saveOfflineDraft/);
+  assert.match(source, /saveQueueRef/);
   assert.match(migration, /enable row level security/i);
   assert.match(migration, /entry-images/);
   assert.match(proxy, /updateSession/);

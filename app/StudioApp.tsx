@@ -360,7 +360,12 @@ export function StudioApp({
                     !item.id.startsWith("sample-"),
                 ),
               ]);
-              setSelectedEntryId(savedEntry.id);
+              if (
+                selectedEntryId &&
+                !selectedEntryId.startsWith("sample-")
+              ) {
+                setSelectedEntryId(savedEntry.id);
+              }
               window.history.replaceState({}, "", `/entries/${savedEntry.id}`);
             }}
             onDeleted={(id) => {
@@ -744,6 +749,16 @@ function Editor({
     Boolean(entry?.gameId || entry?.designTheme || entry?.tags.length),
   );
   const saveTimer = useRef<number | undefined>(undefined);
+  const entryIdRef = useRef(entry?.id);
+  const versionRef = useRef(entry?.version);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const onSavedRef = useRef(onSaved);
+  const onToastRef = useRef(onToast);
+  const offlineKeyRef = useRef(
+    entry?.id && !entry.id.startsWith("sample-")
+      ? `entry:${entry.id}`
+      : `new:${crypto.randomUUID()}`,
+  );
   const fileRef = useRef<HTMLInputElement>(null);
 
   const selectedGame = games.find((game) => game.id === draft.gameId);
@@ -757,70 +772,101 @@ function Editor({
     }),
     [draft, tagText],
   );
+  const payloadRef = useRef(payload);
+
+  useEffect(() => {
+    onSavedRef.current = onSaved;
+    onToastRef.current = onToast;
+    payloadRef.current = payload;
+  }, [onSaved, onToast, payload]);
 
   const save = useCallback(
-    async (quiet = false): Promise<Entry | undefined> => {
-      if (!payload.title.trim() && !payload.body.trim()) return undefined;
-      setSyncState(online ? "saving" : "offline");
-      const persistedEntryId =
-        entryId && !entryId.startsWith("sample-") ? entryId : undefined;
-      const key = persistedEntryId
-        ? `entry:${persistedEntryId}`
-        : `new:${crypto.randomUUID()}`;
-      if (!online) {
-        await saveOfflineDraft({
-          key,
-          entryId: persistedEntryId,
-          payload,
-          savedAt: new Date().toISOString(),
-        });
-        if (!quiet) onToast("已保存到本机，联网后会自动同步");
-        return undefined;
+    (quiet = false): Promise<Entry | undefined> => {
+      const snapshot = payloadRef.current;
+      if (!snapshot.title.trim() && !snapshot.body.trim()) {
+        return Promise.resolve(undefined);
       }
-      try {
-        const result = await api<{ entry: Entry }>(
-          persistedEntryId
-            ? `/api/entries/${persistedEntryId}`
-            : "/api/entries",
-          {
-            method: persistedEntryId ? "PATCH" : "POST",
-            body: JSON.stringify(payload),
-          },
-        );
-        setEntryId(result.entry.id);
-        setDraft((current) => ({
-          ...current,
-          version: result.entry.version,
-        }));
-        setSyncState("saved");
-        onSaved(result.entry);
-        if (!quiet) onToast("已保存");
-        return result.entry;
-      } catch (error) {
-        const typed = error as Error & { status?: number };
-        if (typed.status === 409) {
-          setSyncState("conflict");
+
+      const task = saveQueueRef.current.then(async () => {
+        const persistedEntryId =
+          entryIdRef.current && !entryIdRef.current.startsWith("sample-")
+            ? entryIdRef.current
+            : undefined;
+        const requestPayload: EntryInput = {
+          ...snapshot,
+          version: versionRef.current,
+        };
+        setSyncState(online ? "saving" : "offline");
+
+        if (!online) {
           await saveOfflineDraft({
-            key: `conflict:${entryId}:${Date.now()}`,
+            key: persistedEntryId
+              ? `entry:${persistedEntryId}`
+              : offlineKeyRef.current,
             entryId: persistedEntryId,
-            payload,
+            payload: requestPayload,
             savedAt: new Date().toISOString(),
           });
-          onToast("检测到另一台设备的修改，本地版本已保留");
-        } else {
-          setSyncState("error");
-          await saveOfflineDraft({
-            key,
-            entryId,
-            payload,
-            savedAt: new Date().toISOString(),
-          }).catch(() => undefined);
-          if (!quiet) onToast(typed.message);
+          if (!quiet) onToastRef.current("已保存到本机，联网后会自动同步");
+          return undefined;
         }
-        return undefined;
-      }
+
+        try {
+          const result = await api<{ entry: Entry }>(
+            persistedEntryId
+              ? `/api/entries/${persistedEntryId}`
+              : "/api/entries",
+            {
+              method: persistedEntryId ? "PATCH" : "POST",
+              body: JSON.stringify(requestPayload),
+            },
+          );
+          entryIdRef.current = result.entry.id;
+          versionRef.current = result.entry.version;
+          offlineKeyRef.current = `entry:${result.entry.id}`;
+          setEntryId(result.entry.id);
+          setDraft((current) => ({
+            ...current,
+            version: result.entry.version,
+          }));
+          setSyncState("saved");
+          onSavedRef.current(result.entry);
+          if (!quiet) onToastRef.current("已保存");
+          return result.entry;
+        } catch (error) {
+          const typed = error as Error & { status?: number };
+          if (typed.status === 409) {
+            setSyncState("conflict");
+            await saveOfflineDraft({
+              key: `conflict:${persistedEntryId ?? "new"}:${Date.now()}`,
+              entryId: persistedEntryId,
+              payload: requestPayload,
+              savedAt: new Date().toISOString(),
+            });
+            onToastRef.current("检测到版本冲突，本地修改已保留");
+          } else {
+            setSyncState("error");
+            await saveOfflineDraft({
+              key: persistedEntryId
+                ? `entry:${persistedEntryId}`
+                : offlineKeyRef.current,
+              entryId: persistedEntryId,
+              payload: requestPayload,
+              savedAt: new Date().toISOString(),
+            }).catch(() => undefined);
+            if (!quiet) onToastRef.current(typed.message);
+          }
+          return undefined;
+        }
+      });
+
+      saveQueueRef.current = task.then(
+        () => undefined,
+        () => undefined,
+      );
+      return task;
     },
-    [entryId, online, onSaved, onToast, payload],
+    [online],
   );
 
   useEffect(() => {
@@ -861,7 +907,10 @@ function Editor({
       onToast("图片需要联网后上传，文字草稿不会丢失");
       return;
     }
-    let targetId = entryId;
+    let targetId =
+      entryIdRef.current && !entryIdRef.current.startsWith("sample-")
+        ? entryIdRef.current
+        : undefined;
     if (!targetId) targetId = (await save())?.id;
     if (!targetId) {
       onToast("请先填写标题或正文");
@@ -920,7 +969,10 @@ function Editor({
   };
 
   const createShare = async () => {
-    let targetId = entryId;
+    let targetId =
+      entryIdRef.current && !entryIdRef.current.startsWith("sample-")
+        ? entryIdRef.current
+        : undefined;
     if (!targetId) targetId = (await save())?.id;
     if (!targetId) return;
     const result = await api<{ path: string }>("/api/shares", {
@@ -932,7 +984,7 @@ function Editor({
   };
 
   const copyShareLink = async () => {
-    let targetId = entryId;
+    let targetId = entryIdRef.current;
     if (!targetId || targetId.startsWith("sample-")) {
       targetId = (await save(true))?.id;
     }

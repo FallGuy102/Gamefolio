@@ -1,120 +1,91 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Entry, EntryImage, Game, ReviewSection } from "./types";
-import { jsonArray, rawDatabase } from "./server";
 
-type RawEntry = {
-  id: string;
-  type: "idea" | "review";
-  title: string;
-  body: string;
-  game_id: string | null;
-  design_theme: string | null;
-  status: "draft" | "complete";
-  favorite: number;
-  version: number;
-  created_at: string;
-  updated_at: string;
-};
+type Row = Record<string, unknown>;
 
-export async function hydrateEntries(rows: RawEntry[], ownerEmail?: string): Promise<Entry[]> {
-  if (!rows.length) return [];
-  const db = rawDatabase();
-  const ids = rows.map((row) => row.id);
-  const placeholders = ids.map(() => "?").join(",");
-  const ownerClause = ownerEmail ? " AND owner_email = ?" : "";
-  const binds = ownerEmail ? [...ids, ownerEmail] : ids;
-
-  const [sectionResult, tagResult, imageResult, gameResult] = await Promise.all([
-    db
-      .prepare(
-        `SELECT id, entry_id, kind, content, position FROM entry_sections
-         WHERE entry_id IN (${placeholders})${ownerClause} ORDER BY position`,
-      )
-      .bind(...binds)
-      .all(),
-    db
-      .prepare(
-        `SELECT et.entry_id, t.name FROM entry_tags et
-         JOIN tags t ON t.id = et.tag_id
-         WHERE et.entry_id IN (${placeholders}) ORDER BY t.name`,
-      )
-      .bind(...ids)
-      .all(),
-    db
-      .prepare(
-        `SELECT id, entry_id, file_name, content_type, size, caption, position
-         FROM entry_images WHERE entry_id IN (${placeholders})${ownerClause} ORDER BY position`,
-      )
-      .bind(...binds)
-      .all(),
-    db
-      .prepare(
-        `SELECT DISTINCT g.* FROM games g JOIN entries e ON e.game_id = g.id
-         WHERE e.id IN (${placeholders})`,
-      )
-      .bind(...ids)
-      .all(),
-  ]);
-
-  const sections = sectionResult.results as unknown as Array<{
-    id: string; entry_id: string; kind: string; content: string; position: number;
-  }>;
-  const tagRows = tagResult.results as unknown as Array<{ entry_id: string; name: string }>;
-  const images = imageResult.results as unknown as Array<{
-    id: string; entry_id: string; file_name: string; content_type: string; size: number; caption: string; position: number;
-  }>;
-  const games = new Map(
-    (gameResult.results as unknown as Array<Record<string, unknown>>).map((game) => [
-      String(game.id),
-      mapGame(game),
-    ]),
-  );
-
-  return rows.map((row) => ({
-    id: row.id,
-    type: row.type,
-    title: row.title,
-    body: row.body,
-    gameId: row.game_id,
-    game: row.game_id ? games.get(row.game_id) ?? null : null,
-    designTheme: row.design_theme,
-    status: row.status,
-    favorite: Boolean(row.favorite),
-    version: row.version,
-    tags: tagRows.filter((tag) => tag.entry_id === row.id).map((tag) => tag.name),
-    sections: sections
-      .filter((section) => section.entry_id === row.id)
-      .map((section): ReviewSection => ({
-        id: section.id,
-        kind: section.kind,
-        content: section.content,
-        position: section.position,
-      })),
-    images: images
-      .filter((image) => image.entry_id === row.id)
-      .map((image): EntryImage => ({
-        id: image.id,
-        entryId: image.entry_id,
-        fileName: image.file_name,
-        contentType: image.content_type,
-        size: image.size,
-        caption: image.caption,
-        position: image.position,
-        url: `/api/images/${image.id}`,
-      })),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }));
-}
-
-export function mapGame(game: Record<string, unknown>): Game {
+export function mapGame(game: Row): Game {
   return {
     id: String(game.id),
     igdbId: game.igdb_id == null ? null : Number(game.igdb_id),
     name: String(game.name),
     coverUrl: game.cover_url ? String(game.cover_url) : null,
-    genres: jsonArray(game.genres_json),
-    platforms: jsonArray(game.platforms_json),
+    genres: Array.isArray(game.genres) ? game.genres.map(String) : [],
+    platforms: Array.isArray(game.platforms) ? game.platforms.map(String) : [],
     developer: game.developer ? String(game.developer) : null,
     isManual: Boolean(game.is_manual),
   };
+}
+
+export async function hydrateEntries(
+  supabase: SupabaseClient,
+  rows: Row[],
+  shareToken?: string,
+): Promise<Entry[]> {
+  if (!rows.length) return [];
+  const ids = rows.map((row) => String(row.id));
+  const gameIds = rows.map((row) => row.game_id).filter(Boolean).map(String);
+  const [sectionsResult, tagsResult, imagesResult, gamesResult] = await Promise.all([
+    supabase.from("entry_sections").select("*").in("entry_id", ids).order("position"),
+    supabase
+      .from("entry_tags")
+      .select("entry_id, tag:tags(name)")
+      .in("entry_id", ids),
+    supabase.from("entry_images").select("*").in("entry_id", ids).order("position"),
+    gameIds.length
+      ? supabase.from("games").select("*").in("id", gameIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const firstError =
+    sectionsResult.error || tagsResult.error || imagesResult.error || gamesResult.error;
+  if (firstError) throw firstError;
+
+  const sections = (sectionsResult.data ?? []) as Row[];
+  const tagRows = (tagsResult.data ?? []) as Array<Row & { tag?: { name?: string } | null }>;
+  const images = (imagesResult.data ?? []) as Row[];
+  const games = new Map(
+    ((gamesResult.data ?? []) as Row[]).map((game) => [String(game.id), mapGame(game)]),
+  );
+
+  return rows.map((row) => ({
+    id: String(row.id),
+    type: row.type === "review" ? "review" : "idea",
+    title: String(row.title ?? ""),
+    body: String(row.body ?? ""),
+    gameId: row.game_id ? String(row.game_id) : null,
+    game: row.game_id ? games.get(String(row.game_id)) ?? null : null,
+    designTheme: row.design_theme ? String(row.design_theme) : null,
+    status: row.status === "complete" ? "complete" : "draft",
+    favorite: Boolean(row.favorite),
+    version: Number(row.version ?? 1),
+    tags: tagRows
+      .filter((tag) => String(tag.entry_id) === String(row.id))
+      .map((tag) => tag.tag?.name)
+      .filter((name): name is string => Boolean(name)),
+    sections: sections
+      .filter((section) => String(section.entry_id) === String(row.id))
+      .map(
+        (section): ReviewSection => ({
+          id: String(section.id),
+          kind: String(section.kind),
+          content: String(section.content ?? ""),
+          position: Number(section.position ?? 0),
+        }),
+      ),
+    images: images
+      .filter((image) => String(image.entry_id) === String(row.id))
+      .map(
+        (image): EntryImage => ({
+          id: String(image.id),
+          entryId: String(image.entry_id),
+          fileName: String(image.file_name),
+          contentType: String(image.content_type),
+          size: Number(image.size),
+          caption: String(image.caption ?? ""),
+          position: Number(image.position ?? 0),
+          url: `/api/images/${image.id}${shareToken ? `?share=${encodeURIComponent(shareToken)}` : ""}`,
+        }),
+      ),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  }));
 }

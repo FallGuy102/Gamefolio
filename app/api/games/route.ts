@@ -1,59 +1,48 @@
 import { mapGame } from "@/app/lib/data";
-import { cleanText, currentUserEmail, rawDatabase, unauthorized } from "@/app/lib/server";
+import { cleanText, requireUser } from "@/app/lib/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
-  const email = await currentUserEmail(request);
-  if (!email) return unauthorized();
-  const result = await rawDatabase()
-    .prepare("SELECT * FROM games WHERE owner_email = ? ORDER BY updated_at DESC")
-    .bind(email)
-    .all();
-  return Response.json({
-    games: result.results.map((game: unknown) =>
-      mapGame(game as Record<string, unknown>),
-    ),
-  });
+export async function GET() {
+  const { supabase, user, response } = await requireUser();
+  if (response || !user) return response;
+  const result = await supabase.from("games").select("*").order("updated_at", { ascending: false });
+  if (result.error) return Response.json({ error: "读取游戏资料失败" }, { status: 500 });
+  return Response.json({ games: (result.data ?? []).map(mapGame) });
 }
 
 export async function POST(request: Request) {
-  const email = await currentUserEmail(request);
-  if (!email) return unauthorized();
+  const { supabase, user, response } = await requireUser();
+  if (response || !user) return response;
   const input = (await request.json()) as Record<string, unknown>;
   const name = cleanText(input.name, 160);
   if (!name) return Response.json({ error: "游戏名称不能为空" }, { status: 400 });
-  const db = rawDatabase();
   const igdbId = input.igdbId == null ? null : Number(input.igdbId);
   if (igdbId) {
-    const existing = await db
-      .prepare("SELECT * FROM games WHERE owner_email = ? AND igdb_id = ?")
-      .bind(email, igdbId)
-      .first<Record<string, unknown>>();
-    if (existing) return Response.json({ game: mapGame(existing) });
+    const existing = await supabase
+      .from("games")
+      .select("*")
+      .eq("igdb_id", igdbId)
+      .maybeSingle();
+    if (existing.data) return Response.json({ game: mapGame(existing.data) });
   }
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-  await db
-    .prepare(
-      `INSERT INTO games
-       (id, owner_email, igdb_id, name, cover_url, genres_json, platforms_json, developer, is_manual, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .bind(
-      id,
-      email,
-      igdbId,
+  const result = await supabase
+    .from("games")
+    .insert({
+      id: crypto.randomUUID(),
+      user_id: user.id,
+      igdb_id: igdbId,
       name,
-      cleanText(input.coverUrl, 500) || null,
-      JSON.stringify(Array.isArray(input.genres) ? input.genres.slice(0, 12) : []),
-      JSON.stringify(Array.isArray(input.platforms) ? input.platforms.slice(0, 12) : []),
-      cleanText(input.developer, 160) || null,
-      input.isManual === false ? 0 : 1,
-      now,
-      now,
-    )
-    .run();
-  const game = await db.prepare("SELECT * FROM games WHERE id = ?").bind(id).first<Record<string, unknown>>();
-  return Response.json({ game: game ? mapGame(game) : null }, { status: 201 });
+      cover_url: cleanText(input.coverUrl, 500) || null,
+      genres: Array.isArray(input.genres) ? input.genres.slice(0, 12).map(String) : [],
+      platforms: Array.isArray(input.platforms)
+        ? input.platforms.slice(0, 12).map(String)
+        : [],
+      developer: cleanText(input.developer, 160) || null,
+      is_manual: input.isManual !== false,
+    })
+    .select("*")
+    .single();
+  if (result.error) return Response.json({ error: "保存游戏资料失败" }, { status: 500 });
+  return Response.json({ game: mapGame(result.data) }, { status: 201 });
 }

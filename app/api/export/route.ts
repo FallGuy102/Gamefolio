@@ -1,24 +1,22 @@
 import { hydrateEntries, mapGame } from "@/app/lib/data";
-import { currentUserEmail, rawDatabase, unauthorized } from "@/app/lib/server";
+import { requireUser } from "@/app/lib/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
-  const email = await currentUserEmail(request);
-  if (!email) return unauthorized();
-  const db = rawDatabase();
+export async function GET() {
+  const { supabase, user, response } = await requireUser();
+  if (response || !user) return response;
   const [entryResult, gameResult] = await Promise.all([
-    db.prepare("SELECT * FROM entries WHERE owner_email = ? ORDER BY updated_at DESC").bind(email).all(),
-    db.prepare("SELECT * FROM games WHERE owner_email = ? ORDER BY name").bind(email).all(),
+    supabase.from("entries").select("*").order("updated_at", { ascending: false }),
+    supabase.from("games").select("*").order("name"),
   ]);
-  const entries = await hydrateEntries(entryResult.results as never[], email);
-  const games = gameResult.results.map((game: unknown) =>
-    mapGame(game as Record<string, unknown>),
-  );
+  if (entryResult.error || gameResult.error) {
+    return Response.json({ error: "导出数据失败" }, { status: 500 });
+  }
   return Response.json({
     formatVersion: 1,
     exportedAt: new Date().toISOString(),
-    entries,
-    games,
+    entries: await hydrateEntries(supabase, entryResult.data ?? []),
+    games: (gameResult.data ?? []).map(mapGame),
   });
 }

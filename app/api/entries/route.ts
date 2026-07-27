@@ -1,139 +1,120 @@
 import { hydrateEntries } from "@/app/lib/data";
-import { cleanText, currentUserEmail, rawDatabase, unauthorized } from "@/app/lib/server";
+import { cleanText, requireUser } from "@/app/lib/server";
 import type { EntryInput, ReviewSection } from "@/app/lib/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const email = await currentUserEmail(request);
-  if (!email) return unauthorized();
-
+  const { supabase, user, response } = await requireUser();
+  if (response || !user) return response;
   const url = new URL(request.url);
   const query = cleanText(url.searchParams.get("q"), 120);
+
+  let builder = supabase
+    .from("entries")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .limit(200);
   const type = url.searchParams.get("type");
-  const favorite = url.searchParams.get("favorite");
+  if (type === "idea" || type === "review") builder = builder.eq("type", type);
+  if (url.searchParams.get("favorite") === "true") builder = builder.eq("favorite", true);
   const gameId = url.searchParams.get("gameId");
-  const where = ["e.owner_email = ?"];
-  const values: unknown[] = [email];
-
+  if (gameId) builder = builder.eq("game_id", gameId);
   if (query) {
-    where.push("(e.title LIKE ? OR e.body LIKE ? OR e.design_theme LIKE ?)");
-    const like = `%${query}%`;
-    values.push(like, like, like);
+    const safe = query.replaceAll(",", " ");
+    builder = builder.or(
+      `title.ilike.%${safe}%,body.ilike.%${safe}%,design_theme.ilike.%${safe}%`,
+    );
   }
-  if (type === "idea" || type === "review") {
-    where.push("e.type = ?");
-    values.push(type);
-  }
-  if (favorite === "true") {
-    where.push("e.favorite = 1");
-  }
-  if (gameId) {
-    where.push("e.game_id = ?");
-    values.push(gameId);
-  }
-
-  const result = await rawDatabase()
-    .prepare(
-      `SELECT e.* FROM entries e WHERE ${where.join(" AND ")}
-       ORDER BY e.updated_at DESC LIMIT 200`,
-    )
-    .bind(...values)
-    .all();
-  const entries = await hydrateEntries(result.results as never[], email);
-  return Response.json({ entries });
+  const { data, error } = await builder;
+  if (error) return Response.json({ error: "读取条目失败" }, { status: 500 });
+  return Response.json({ entries: await hydrateEntries(supabase, data ?? []) });
 }
 
 export async function POST(request: Request) {
-  const email = await currentUserEmail(request);
-  if (!email) return unauthorized();
+  const { supabase, user, response } = await requireUser();
+  if (response || !user) return response;
   const input = (await request.json()) as Partial<EntryInput>;
   const title = cleanText(input.title, 160);
   const body = cleanText(input.body, 30000);
-  const type = input.type === "review" ? "review" : "idea";
   if (!title && !body) {
     return Response.json({ error: "请至少填写标题或正文" }, { status: 400 });
   }
 
   const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const db = rawDatabase();
-  await db
-    .prepare(
-      `INSERT INTO entries
-       (id, owner_email, type, title, body, game_id, design_theme, status, favorite, version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-    )
-    .bind(
-      id,
-      email,
-      type,
-      title || body.slice(0, 28) || "未命名灵感",
-      body,
-      input.gameId || null,
-      cleanText(input.designTheme, 80) || null,
-      input.status === "complete" ? "complete" : "draft",
-      input.favorite ? 1 : 0,
-      now,
-      now,
-    )
-    .run();
+  const { error } = await supabase.from("entries").insert({
+    id,
+    user_id: user.id,
+    type: input.type === "review" ? "review" : "idea",
+    title: title || body.slice(0, 28) || "未命名灵感",
+    body,
+    game_id: input.gameId || null,
+    design_theme: cleanText(input.designTheme, 80) || null,
+    status: input.status === "complete" ? "complete" : "draft",
+    favorite: Boolean(input.favorite),
+    version: 1,
+  });
+  if (error) return Response.json({ error: "创建条目失败" }, { status: 500 });
 
-  await replaceSectionsAndTags(id, email, input.sections ?? [], input.tags ?? []);
-  const result = await db
-    .prepare("SELECT * FROM entries WHERE id = ? AND owner_email = ?")
-    .bind(id, email)
-    .all();
-  const [entry] = await hydrateEntries(result.results as never[], email);
+  await replaceSectionsAndTags(supabase, user.id, id, input.sections ?? [], input.tags ?? []);
+  const result = await supabase.from("entries").select("*").eq("id", id).single();
+  if (result.error) return Response.json({ error: "读取新条目失败" }, { status: 500 });
+  const [entry] = await hydrateEntries(supabase, [result.data]);
   return Response.json({ entry }, { status: 201 });
 }
 
 export async function replaceSectionsAndTags(
+  supabase: SupabaseClient,
+  userId: string,
   entryId: string,
-  email: string,
   sections: ReviewSection[],
   tags: string[],
 ) {
-  const db = rawDatabase();
-  await db.batch([
-    db.prepare("DELETE FROM entry_sections WHERE entry_id = ? AND owner_email = ?").bind(entryId, email),
-    db.prepare("DELETE FROM entry_tags WHERE entry_id = ?").bind(entryId),
+  await Promise.all([
+    supabase.from("entry_sections").delete().eq("entry_id", entryId),
+    supabase.from("entry_tags").delete().eq("entry_id", entryId),
   ]);
 
-  const sectionStatements = sections
+  const sectionRows = sections
     .filter((section) => cleanText(section.content))
-    .map((section, index) =>
-      db
-        .prepare(
-          "INSERT INTO entry_sections (id, entry_id, owner_email, kind, content, position) VALUES (?, ?, ?, ?, ?, ?)",
-        )
-        .bind(
-          crypto.randomUUID(),
-          entryId,
-          email,
-          cleanText(section.kind, 40) || "note",
-          cleanText(section.content, 15000),
-          index,
-        ),
-    );
-  if (sectionStatements.length) await db.batch(sectionStatements);
+    .map((section, position) => ({
+      id: crypto.randomUUID(),
+      entry_id: entryId,
+      user_id: userId,
+      kind: cleanText(section.kind, 40) || "note",
+      content: cleanText(section.content, 15000),
+      position,
+    }));
+  if (sectionRows.length) {
+    const { error } = await supabase.from("entry_sections").insert(sectionRows);
+    if (error) throw error;
+  }
 
   for (const rawTag of tags.slice(0, 20)) {
     const name = cleanText(rawTag, 32).replace(/^#/, "");
     if (!name) continue;
-    await db
-      .prepare("INSERT OR IGNORE INTO tags (id, owner_email, name) VALUES (?, ?, ?)")
-      .bind(crypto.randomUUID(), email, name)
-      .run();
-    const tag = await db
-      .prepare("SELECT id FROM tags WHERE owner_email = ? AND name = ?")
-      .bind(email, name)
-      .first<{ id: string }>();
-    if (tag) {
-      await db
-        .prepare("INSERT OR IGNORE INTO entry_tags (entry_id, tag_id) VALUES (?, ?)")
-        .bind(entryId, tag.id)
-        .run();
+    let tagResult = await supabase
+      .from("tags")
+      .select("id")
+      .eq("name", name)
+      .maybeSingle();
+    if (!tagResult.data) {
+      tagResult = await supabase
+        .from("tags")
+        .insert({ id: crypto.randomUUID(), user_id: userId, name })
+        .select("id")
+        .single();
     }
+    if (tagResult.error || !tagResult.data) {
+      throw tagResult.error ?? new Error("标签保存失败");
+    }
+    const { error: linkError } = await supabase
+      .from("entry_tags")
+      .upsert(
+        { entry_id: entryId, tag_id: tagResult.data.id, user_id: userId },
+        { onConflict: "entry_id,tag_id" },
+      );
+    if (linkError) throw linkError;
   }
 }

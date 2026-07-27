@@ -1,4 +1,4 @@
-import { cleanText, currentUserEmail, unauthorized } from "@/app/lib/server";
+import { cleanText, requireUser } from "@/app/lib/server";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +10,8 @@ const fallbackGames = [
 ];
 
 export async function GET(request: Request) {
-  const email = await currentUserEmail(request);
-  if (!email) return unauthorized();
+  const { user, response } = await requireUser();
+  if (response || !user) return response;
   const query = cleanText(new URL(request.url).searchParams.get("q"), 80);
   if (!query) return Response.json({ games: [] });
 

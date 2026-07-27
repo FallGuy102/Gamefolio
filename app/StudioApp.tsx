@@ -1518,12 +1518,11 @@ function Settings({
             <strong>个人资料库</strong>
             <small>通过当前安全账户访问，所有写入均按用户隔离</small>
           </div>
-          <a
-            className="secondary-button"
-            href="/signout-with-chatgpt?return_to=/"
-          >
-            退出登录
-          </a>
+          <form action="/auth/signout" method="post">
+            <button className="secondary-button" type="submit">
+              退出登录
+            </button>
+          </form>
         </div>
       </section>
     </div>

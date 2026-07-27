@@ -1430,6 +1430,7 @@ function Settings({
       const zip = new JSZip();
       zip.file("library.json", JSON.stringify(data, null, 2));
       const notes = zip.folder("markdown");
+      const imageFolder = zip.folder("images");
       for (const entry of data.entries) {
         const sections = entry.sections
           .map(
@@ -1441,6 +1442,16 @@ function Settings({
           `${entry.title.replace(/[\\/:*?"<>|]/g, "-") || entry.id}.md`,
           `# ${entry.title}\n\n${entry.body}\n\n${sections}\n\n标签：${entry.tags.join("、")}`,
         );
+        for (const image of entry.images) {
+          const response = await fetch(`/api/images/${image.id}`);
+          if (!response.ok) continue;
+          const extension =
+            image.fileName.split(".").pop()?.replace(/[^\w]/g, "") || "bin";
+          imageFolder?.file(
+            `${entry.id}/${String(image.position + 1).padStart(2, "0")}-${image.id}.${extension}`,
+            await response.blob(),
+          );
+        }
       }
       const blob = await zip.generateAsync({ type: "blob" });
       const link = document.createElement("a");

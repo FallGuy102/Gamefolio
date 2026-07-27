@@ -129,8 +129,12 @@ export function StudioApp({
       ]);
       setEntries(entryData.entries);
       setGames(gameData.games);
-    } catch {
-      // Keep the starter records visible if the local database is not ready.
+    } catch (error) {
+      setEntries([]);
+      setGames([]);
+      setToast(
+        `${(error as Error).message}。请确认 Supabase 数据库脚本已成功运行。`,
+      );
     } finally {
       setLoading(false);
     }
@@ -1410,6 +1414,7 @@ function GamePicker({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Game[]>(games);
   const [searching, setSearching] = useState(false);
+  const [creating, setCreating] = useState(false);
   const search = async () => {
     if (!query.trim()) return;
     setSearching(true);
@@ -1442,12 +1447,22 @@ function GamePicker({
     onSelect(result.game);
   };
   const createManual = async () => {
-    if (!query.trim()) return;
-    const result = await api<{ game: Game }>("/api/games", {
-      method: "POST",
-      body: JSON.stringify({ name: query, isManual: true }),
-    });
-    onSelect(result.game);
+    const name = query.trim();
+    if (!name || creating) return;
+    setCreating(true);
+    try {
+      const result = await api<{ game: Game }>("/api/games", {
+        method: "POST",
+        body: JSON.stringify({ name, isManual: true }),
+      });
+      onSelect(result.game);
+      setQuery("");
+      onToast(`已创建并关联《${result.game.name}》`);
+    } catch (error) {
+      onToast((error as Error).message || "创建游戏档案失败");
+    } finally {
+      setCreating(false);
+    }
   };
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -1500,8 +1515,13 @@ function GamePicker({
             ))}
           </div>
           {query && (
-            <button className="manual-game" onClick={createManual}>
-              ＋ 创建“{query}”的手动档案
+            <button
+              type="button"
+              className="manual-game"
+              onClick={() => void createManual()}
+              disabled={creating}
+            >
+              {creating ? "正在创建…" : `＋ 创建“${query.trim()}”的手动档案`}
             </button>
           )}
           <Dialog.Close className="dialog-close" aria-label="关闭">

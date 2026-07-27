@@ -7,7 +7,13 @@ export async function GET() {
   const { supabase, user, response } = await requireUser();
   if (response || !user) return response;
   const result = await supabase.from("games").select("*").order("updated_at", { ascending: false });
-  if (result.error) return Response.json({ error: "读取游戏资料失败" }, { status: 500 });
+  if (result.error) {
+    console.error("Read games failed:", result.error);
+    return Response.json(
+      { error: "无法读取游戏资料，请确认 Supabase 数据库脚本已运行" },
+      { status: 500 },
+    );
+  }
   return Response.json({ games: (result.data ?? []).map(mapGame) });
 }
 
@@ -43,6 +49,12 @@ export async function POST(request: Request) {
     })
     .select("*")
     .single();
-  if (result.error) return Response.json({ error: "保存游戏资料失败" }, { status: 500 });
+  if (result.error) {
+    console.error("Create game failed:", result.error);
+    return Response.json(
+      { error: "创建失败，请确认 Supabase 中已创建 games 表和 RLS 权限" },
+      { status: 500 },
+    );
+  }
   return Response.json({ game: mapGame(result.data) }, { status: 201 });
 }

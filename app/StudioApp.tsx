@@ -127,7 +127,7 @@ export function StudioApp({
         api<{ entries: Entry[] }>("/api/entries"),
         api<{ games: Game[] }>("/api/games"),
       ]);
-      setEntries(entryData.entries);
+      setEntries(entryData.entries.length ? entryData.entries : sampleEntries);
       setGames(gameData.games);
     } catch (error) {
       setEntries([]);
@@ -354,7 +354,11 @@ export function StudioApp({
             onSaved={(savedEntry) => {
               setEntries((current) => [
                 savedEntry,
-                ...current.filter((item) => item.id !== savedEntry.id),
+                ...current.filter(
+                  (item) =>
+                    item.id !== savedEntry.id &&
+                    !item.id.startsWith("sample-"),
+                ),
               ]);
               setSelectedEntryId(savedEntry.id);
               window.history.replaceState({}, "", `/entries/${savedEntry.id}`);
@@ -758,13 +762,15 @@ function Editor({
     async (quiet = false): Promise<Entry | undefined> => {
       if (!payload.title.trim() && !payload.body.trim()) return undefined;
       setSyncState(online ? "saving" : "offline");
-      const key = entryId
-        ? `entry:${entryId}`
+      const persistedEntryId =
+        entryId && !entryId.startsWith("sample-") ? entryId : undefined;
+      const key = persistedEntryId
+        ? `entry:${persistedEntryId}`
         : `new:${crypto.randomUUID()}`;
       if (!online) {
         await saveOfflineDraft({
           key,
-          entryId,
+          entryId: persistedEntryId,
           payload,
           savedAt: new Date().toISOString(),
         });
@@ -773,9 +779,11 @@ function Editor({
       }
       try {
         const result = await api<{ entry: Entry }>(
-          entryId ? `/api/entries/${entryId}` : "/api/entries",
+          persistedEntryId
+            ? `/api/entries/${persistedEntryId}`
+            : "/api/entries",
           {
-            method: entryId ? "PATCH" : "POST",
+            method: persistedEntryId ? "PATCH" : "POST",
             body: JSON.stringify(payload),
           },
         );
@@ -794,7 +802,7 @@ function Editor({
           setSyncState("conflict");
           await saveOfflineDraft({
             key: `conflict:${entryId}:${Date.now()}`,
-            entryId,
+            entryId: persistedEntryId,
             payload,
             savedAt: new Date().toISOString(),
           });
@@ -924,10 +932,14 @@ function Editor({
   };
 
   const copyShareLink = async () => {
-    if (!entryId) return;
+    let targetId = entryId;
+    if (!targetId || targetId.startsWith("sample-")) {
+      targetId = (await save(true))?.id;
+    }
+    if (!targetId) return;
     const result = await api<{ path: string }>("/api/shares", {
       method: "POST",
-      body: JSON.stringify({ entryId }),
+      body: JSON.stringify({ entryId: targetId }),
     });
     const url = `${location.origin}${result.path}`;
     await navigator.clipboard.writeText(url);
@@ -943,13 +955,14 @@ function Editor({
           </button>
           <div className="detail-type-pill">
             {draft.type === "idea" ? "✦ 灵感" : "◉ 游戏复盘"}
+            {entryId.startsWith("sample-") ? " · 示例" : ""}
           </div>
           <div className="editor-actions">
             <button className="secondary-button" onClick={() => void copyShareLink()}>
               分享
             </button>
             <button className="primary-button" onClick={() => setEditing(true)}>
-              编辑
+              {entryId.startsWith("sample-") ? "使用此示例" : "编辑"}
             </button>
           </div>
         </header>

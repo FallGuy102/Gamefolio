@@ -4,27 +4,29 @@ import { FormEvent, useState } from "react";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState<"idle" | "signing-in" | "error">("idle");
   const [message, setMessage] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setStatus("sending");
+    setStatus("signing-in");
     setMessage("");
     const next = new URLSearchParams(window.location.search).get("next") || "/";
-    const response = await fetch("/auth/magic-link", {
+    const response = await fetch("/auth/password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, next }),
+      body: JSON.stringify({ email, password, next }),
     });
+    const result = (await response.json().catch(() => null)) as
+      | { error?: string; next?: string }
+      | null;
     if (!response.ok) {
-      const result = (await response.json().catch(() => null)) as { error?: string } | null;
       setStatus("error");
-      setMessage(result?.error ?? "暂时无法发送，请稍后重试。");
+      setMessage(result?.error ?? "暂时无法登录，请稍后重试。");
       return;
     }
-    setStatus("sent");
-    setMessage("登录邮件已发送，请打开邮件中的链接。");
+    window.location.assign(result?.next || "/");
   }
 
   return (
@@ -33,16 +35,26 @@ export function LoginForm() {
       <input
         id="email"
         type="email"
-        autoComplete="email"
+        autoComplete="username"
         placeholder="you@example.com"
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         required
       />
-      <button type="submit" disabled={status === "sending" || status === "sent"}>
-        {status === "sending" ? "正在发送…" : status === "sent" ? "已发送" : "发送登录链接"}
+      <label htmlFor="password">密码</label>
+      <input
+        id="password"
+        type="password"
+        autoComplete="current-password"
+        placeholder="输入你的密码"
+        value={password}
+        onChange={(event) => setPassword(event.target.value)}
+        required
+      />
+      <button type="submit" disabled={status === "signing-in"}>
+        {status === "signing-in" ? "正在登录…" : "登录"}
       </button>
-      {message && <p className={status === "error" ? "login-error" : "login-message"}>{message}</p>}
+      {message && <p className="login-error">{message}</p>}
     </form>
   );
 }

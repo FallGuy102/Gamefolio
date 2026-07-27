@@ -9,7 +9,7 @@ export default function LoginPage() {
         <div className="login-mark">G</div>
         <p className="login-eyebrow">GAME DESIGN VAULT</p>
         <h1>回到你的灵感库</h1>
-        <p className="login-intro">无需密码。输入邮箱后，我们会发给你一个安全登录链接。</p>
+        <p className="login-intro">使用你在 Supabase 中设置的邮箱和密码登录。</p>
         <LoginForm />
       </section>
     </main>

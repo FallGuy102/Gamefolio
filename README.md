@@ -1,7 +1,7 @@
 # Gamefolio
 
 Apple 风格的游戏设计灵感库。项目使用标准 Next.js App Router，可部署到
-Vercel；Supabase 提供邮箱免密码登录、PostgreSQL 数据库、行级权限和私有图片存储。
+Vercel；Supabase 提供邮箱密码登录、PostgreSQL 数据库、行级权限和私有图片存储。
 
 ## 本地运行
 
@@ -13,8 +13,8 @@ Vercel；Supabase 提供邮箱免密码登录、PostgreSQL 数据库、行级权
 4. 在 Supabase Authentication > URL Configuration 中加入：
    - Site URL: `http://localhost:3000`
    - Redirect URL: `http://localhost:3000/auth/confirm`
-5. 在 Authentication > Users 中预先创建允许登录的邮箱账户。登录接口使用
-   `shouldCreateUser: false`，不会开放自由注册。
+5. 在 Authentication > Users 中预先创建允许登录的邮箱账户和密码。应用只提供
+   登录接口，不提供公开注册。
 6. 安装依赖并运行：
 
 ```bash

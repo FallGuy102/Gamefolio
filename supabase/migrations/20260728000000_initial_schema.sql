@@ -124,6 +124,24 @@ alter table public.entry_tags enable row level security;
 alter table public.entry_images enable row level security;
 alter table public.share_links enable row level security;
 
+revoke all on table public.profiles from anon;
+revoke all on table public.games from anon;
+revoke all on table public.entries from anon;
+revoke all on table public.entry_sections from anon;
+revoke all on table public.tags from anon;
+revoke all on table public.entry_tags from anon;
+revoke all on table public.entry_images from anon;
+revoke all on table public.share_links from anon;
+
+grant select, insert, update, delete on table public.profiles to authenticated;
+grant select, insert, update, delete on table public.games to authenticated;
+grant select, insert, update, delete on table public.entries to authenticated;
+grant select, insert, update, delete on table public.entry_sections to authenticated;
+grant select, insert, update, delete on table public.tags to authenticated;
+grant select, insert, update, delete on table public.entry_tags to authenticated;
+grant select, insert, update, delete on table public.entry_images to authenticated;
+grant select, insert, update, delete on table public.share_links to authenticated;
+
 drop policy if exists "profiles_owner_all" on public.profiles;
 create policy "profiles_owner_all" on public.profiles
   for all to authenticated using ((select auth.uid()) = id)
@@ -202,3 +220,5 @@ create policy "entry_images_storage_delete" on storage.objects
     bucket_id = 'entry-images'
     and (storage.foldername(name))[1] = (select auth.uid())::text
   );
+
+notify pgrst, 'reload schema';

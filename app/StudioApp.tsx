@@ -127,6 +127,24 @@ const reviewTemplate: ReviewSection[] = [
   { kind: "summary", label: "自由总结", content: "", position: 6 },
 ];
 
+function entryPayloadFingerprint(input: EntryInput) {
+  return JSON.stringify({
+    type: input.type,
+    title: input.title,
+    body: input.body,
+    gameId: input.gameId ?? null,
+    designTheme: input.designTheme ?? "",
+    status: input.status,
+    favorite: input.favorite,
+    tags: input.tags ?? [],
+    sections: (input.sections ?? []).map((section) => ({
+      kind: section.kind,
+      content: section.content,
+      position: section.position,
+    })),
+  });
+}
+
 const sectionLabels: Record<string, string> = Object.fromEntries(
   reviewTemplate.map((section) => [section.kind, section.label ?? section.kind]),
 );
@@ -1259,6 +1277,7 @@ function Editor({
   const versionRef = useRef(entry?.version);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const conflictRef = useRef(false);
+  const lastPersistedEntryRef = useRef(entry);
   const onSavedRef = useRef(onSaved);
   const onToastRef = useRef(onToast);
   const offlineKeyRef = useRef(
@@ -1280,6 +1299,11 @@ function Editor({
     [draft, tagText],
   );
   const payloadRef = useRef(payload);
+  const payloadFingerprint = useMemo(
+    () => entryPayloadFingerprint(payload),
+    [payload],
+  );
+  const lastSavedFingerprintRef = useRef(payloadFingerprint);
 
   useEffect(() => {
     onSavedRef.current = onSaved;
@@ -1296,12 +1320,27 @@ function Editor({
         return Promise.resolve(undefined);
       }
       const snapshot = payloadRef.current;
+      const snapshotFingerprint = entryPayloadFingerprint(snapshot);
+      if (
+        entryIdRef.current &&
+        snapshotFingerprint === lastSavedFingerprintRef.current
+      ) {
+        setSyncState("saved");
+        return Promise.resolve(lastPersistedEntryRef.current);
+      }
       if (!snapshot.title.trim() && !snapshot.body.trim()) {
         return Promise.resolve(undefined);
       }
 
       const task = saveQueueRef.current.then(async () => {
         const persistedEntryId = entryIdRef.current;
+        if (
+          persistedEntryId &&
+          snapshotFingerprint === lastSavedFingerprintRef.current
+        ) {
+          setSyncState("saved");
+          return lastPersistedEntryRef.current;
+        }
         const requestPayload: EntryInput = {
           ...snapshot,
           version: versionRef.current,
@@ -1317,6 +1356,7 @@ function Editor({
             payload: requestPayload,
             savedAt: new Date().toISOString(),
           });
+          lastSavedFingerprintRef.current = snapshotFingerprint;
           if (!quiet) onToastRef.current("已保存到本机，联网后会自动同步");
           return undefined;
         }
@@ -1333,6 +1373,8 @@ function Editor({
           );
           entryIdRef.current = result.entry.id;
           versionRef.current = result.entry.version;
+          lastPersistedEntryRef.current = result.entry;
+          lastSavedFingerprintRef.current = snapshotFingerprint;
           offlineKeyRef.current = `entry:${result.entry.id}`;
           setEntryId(result.entry.id);
           setDraft((current) => ({
@@ -1385,17 +1427,10 @@ function Editor({
     window.clearTimeout(saveTimer.current);
     if (!editing) return;
     if (!payload.title.trim() && !payload.body.trim()) return;
+    if (payloadFingerprint === lastSavedFingerprintRef.current) return;
     saveTimer.current = window.setTimeout(() => void save(true), 1400);
     return () => window.clearTimeout(saveTimer.current);
-  }, [
-    payload.title,
-    payload.body,
-    payload.designTheme,
-    payload.favorite,
-    tagText,
-    editing,
-    save,
-  ]);
+  }, [editing, payload.title, payload.body, payloadFingerprint, save]);
 
   const changeType = (type: EntryType) => {
     setDraft((current) => ({

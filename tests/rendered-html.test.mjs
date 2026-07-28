@@ -195,6 +195,17 @@ test("keeps entry versions synchronized and stops repeated conflict saves", asyn
   assert.match(source, /draft\.key\.startsWith\("conflict:"\)/);
   assert.match(source, /conflictRef\.current = true/);
   assert.match(source, /if \(conflictRef\.current\)/);
+  assert.match(source, /entryPayloadFingerprint/);
+  assert.match(source, /lastSavedFingerprintRef/);
+  assert.match(
+    source,
+    /snapshotFingerprint === lastSavedFingerprintRef\.current/,
+  );
+  assert.match(
+    source,
+    /payloadFingerprint === lastSavedFingerprintRef\.current/,
+  );
+  assert.match(source, /lastPersistedEntryRef/);
 });
 
 test("uses dark-mode-safe classification controls instead of a native theme select", async () => {

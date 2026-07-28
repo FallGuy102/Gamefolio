@@ -82,11 +82,14 @@
 
 html {
   background: var(--canvas);
-  scroll-behavior: smooth;
+  overflow-x: clip;
+  scrollbar-gutter: stable;
+  scroll-behavior: auto;
 }
 
 body {
   margin: 0;
+  overflow-x: clip;
   background: var(--canvas);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -410,12 +413,20 @@ a:focus-visible {
 }
 
 .main-content {
+  min-width: 0;
   min-height: 100vh;
   margin-left: var(--sidebar);
 }
 
+.view-stage {
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+  overflow-x: clip;
+}
+
 .page {
-  width: min(1050px, calc(100vw - var(--sidebar) - 64px));
+  width: min(1050px, calc(100% - 64px));
   margin: 0 auto;
   padding: 54px 0 80px;
 }
@@ -878,7 +889,7 @@ a:focus-visible {
 }
 
 .editor-page {
-  width: min(920px, calc(100vw - var(--sidebar) - 80px));
+  width: min(920px, calc(100% - 80px));
   padding-top: 20px;
 }
 
@@ -2222,7 +2233,7 @@ button:active {
 }
 
 .page {
-  width: min(1040px, calc(100vw - var(--sidebar) - 72px));
+  width: min(1040px, calc(100% - 72px));
   padding: 44px 0 84px;
 }
 
@@ -2560,7 +2571,7 @@ button:active {
 }
 
 .editor-page {
-  width: min(880px, calc(100vw - var(--sidebar) - 64px));
+  width: min(880px, calc(100% - 64px));
   padding-top: 0;
 }
 
@@ -3219,7 +3230,7 @@ body:has(.share-shell) {
   }
 
   .detail-pane .editor-page {
-    width: min(820px, calc(100vw - var(--sidebar) - 400px));
+    width: min(820px, calc(100% - 48px));
     padding-right: 24px;
     padding-left: 24px;
   }

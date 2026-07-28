@@ -26,11 +26,17 @@ test("ships the adaptive Apple visual system and accessible fallbacks", async ()
   assert.match(styles, /--accent:\s*#007aff/i);
   assert.match(styles, /prefers-reduced-transparency/);
   assert.match(styles, /prefers-contrast:\s*more/);
+  assert.match(styles, /scrollbar-gutter:\s*stable/);
+  assert.match(styles, /\.view-stage[\s\S]*overflow-x:\s*clip/);
   assert.match(styles, /@media \(max-width: 767px\)/);
   assert.match(styles, /@media \(min-width: 1100px\)/);
   assert.match(entryPage, /initialView="detail"/);
   assert.match(packageJson, /"lucide-react"/);
   assert.match(packageJson, /"motion"/);
+  assert.match(
+    await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    /AnimatePresence mode="popLayout"/,
+  );
 });
 
 test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => {

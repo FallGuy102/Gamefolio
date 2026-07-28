@@ -176,6 +176,8 @@ export function StudioApp({
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
   const reduceMotion = useReducedMotion();
+  const usesPushTransition =
+    view === "detail" || view === "editor" || view === "game";
 
   const loadData = useCallback(async () => {
     try {
@@ -466,14 +468,26 @@ export function StudioApp({
       </aside>
 
       <main className="main-content">
-        <AnimatePresence mode="wait" initial={false}>
+        <AnimatePresence mode="popLayout" initial={false}>
           <motion.div
             className="view-stage"
             key={view === "detail" || view === "editor" ? `entry-${selectedEntryId}` : view}
-            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: navigationDirection * 18 }}
+            initial={
+              reduceMotion || !usesPushTransition
+                ? { opacity: 0 }
+                : { opacity: 0, x: navigationDirection * 18 }
+            }
             animate={{ opacity: 1, x: 0 }}
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: navigationDirection * -12 }}
-            transition={{ type: "spring", bounce: 0, duration: 0.36 }}
+            exit={
+              reduceMotion || !usesPushTransition
+                ? { opacity: 0 }
+                : { opacity: 0, x: navigationDirection * -12 }
+            }
+            transition={
+              reduceMotion || !usesPushTransition
+                ? { duration: reduceMotion ? 0.08 : 0.14, ease: "easeOut" }
+                : { type: "spring", bounce: 0, duration: 0.36 }
+            }
           >
         {view === "home" && (
           <Dashboard entries={entries} loading={loading} navigate={navigate} />

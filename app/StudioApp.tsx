@@ -71,7 +71,11 @@ const isSecondaryPath = (path: string) =>
 const viewTransitionVariants = {
   initial: ({ direction, style, mobile, reduceMotion }: ViewTransition) => {
     if (reduceMotion || style === "tab") return { opacity: 0, x: 0 };
-    if (!mobile) return { opacity: 0, x: direction * 18 };
+    if (!mobile) {
+      return direction === 1
+        ? { opacity: 0, x: 28 }
+        : { opacity: 0.68, x: -28 };
+    }
     return direction === 1
       ? { opacity: 1, x: "100%" }
       : { opacity: 0.82, x: "-22%" };
@@ -82,7 +86,11 @@ const viewTransitionVariants = {
   },
   exit: ({ direction, style, mobile, reduceMotion }: ViewTransition) => {
     if (reduceMotion || style === "tab") return { opacity: 0, x: 0 };
-    if (!mobile) return { opacity: 0, x: direction * -14 };
+    if (!mobile) {
+      return direction === 1
+        ? { opacity: 0.68, x: -20 }
+        : { opacity: 0, x: 48 };
+    }
     return direction === 1
       ? { opacity: 0.82, x: "-22%" }
       : { opacity: 1, x: "100%" };
@@ -367,14 +375,9 @@ export function StudioApp({
     window.scrollTo({ top: 0, behavior: "auto" });
   };
 
-  const navigateBack = () => {
-    const depth = Number(window.history.state?.gamefolioDepth ?? 0);
-    if (depth > 0) {
-      setNavigationDirection(-1);
-      window.history.back();
-      return;
-    }
+  const returnToLibrary = () => {
     navigate("library", {
+      filter: libraryFilter,
       replace: true,
       direction: -1,
       transition: "stack",
@@ -428,7 +431,7 @@ export function StudioApp({
       online={online}
       initialEditing={view === "editor"}
       onModeChange={(editing) => setView(editing ? "editor" : "detail")}
-      onBack={navigateBack}
+      onBack={returnToLibrary}
       onSaved={(savedEntry) => {
         setEntries((current) => [
           savedEntry,
@@ -565,7 +568,7 @@ export function StudioApp({
                   ? {
                       type: "spring",
                       bounce: 0,
-                      duration: mobileNavigation ? 0.4 : 0.34,
+                      duration: mobileNavigation ? 0.4 : 0.38,
                     }
                   : { duration: 0.16, ease: "easeOut" }
             }
@@ -672,7 +675,7 @@ export function StudioApp({
       />
       <PwaEdgeBack
         enabled={view === "detail" || view === "editor" || view === "game"}
-        onBack={navigateBack}
+        onBack={returnToLibrary}
       />
       {toast && (
         <div className="toast" role="status">

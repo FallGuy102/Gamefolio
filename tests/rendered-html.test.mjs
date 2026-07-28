@@ -13,7 +13,11 @@ test("build contains the complete Gamefolio application shell", async () => {
   assert.match(source, /type View = "home" \| "library" \| "detail" \| "editor"/);
   assert.match(source, /ComposeSheet/);
   assert.match(source, /PwaEdgeBack/);
-  assert.match(source, /history\.back\(\)/);
+  assert.match(source, /const returnToLibrary = \(\) =>/);
+  assert.match(
+    source,
+    /navigate\("library", \{[\s\S]{0,180}direction:\s*-1,[\s\S]{0,100}transition:\s*"stack"/,
+  );
   assert.doesNotMatch(source, /codex-preview|Your site is taking shape/);
 });
 

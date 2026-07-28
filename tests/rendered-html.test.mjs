@@ -59,13 +59,21 @@ test("ships the adaptive Apple visual system and accessible fallbacks", async ()
   );
   assert.match(
     await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
-    /`entry-\$\{editorSessionKey\}`/,
+    /\? "entry-workspace"/,
+  );
+  assert.match(
+    await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    /className="detail-content-stage"[\s\S]{0,120}key=\{editorSessionKey\}/,
   );
   assert.match(
     await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
     /editorSessionKey !== "new"/,
   );
   assert.match(styles, /\.library-workspace\.has-collection/);
+  assert.match(
+    styles,
+    /\.detail-pane \.editor-header[\s\S]{0,260}border-radius:\s*14px/,
+  );
 });
 
 test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => {

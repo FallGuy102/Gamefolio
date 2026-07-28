@@ -73,8 +73,8 @@ const viewTransitionVariants = {
     if (reduceMotion || style === "tab") return { opacity: 0, x: 0 };
     if (!mobile) {
       return direction === 1
-        ? { opacity: 0, x: 28 }
-        : { opacity: 0.68, x: -28 };
+        ? { opacity: 0.9, x: 20 }
+        : { opacity: 0.94, x: -12 };
     }
     return direction === 1
       ? { opacity: 1, x: "100%" }
@@ -88,13 +88,33 @@ const viewTransitionVariants = {
     if (reduceMotion || style === "tab") return { opacity: 0, x: 0 };
     if (!mobile) {
       return direction === 1
-        ? { opacity: 0.68, x: -20 }
-        : { opacity: 0, x: 48 };
+        ? { opacity: 0.94, x: -12 }
+        : { opacity: 0.88, x: 24 };
     }
     return direction === 1
       ? { opacity: 0.82, x: "-22%" }
       : { opacity: 1, x: "100%" };
   },
+} satisfies Variants;
+
+const detailContentVariants = {
+  initial: ({ mobile, reduceMotion }: ViewTransition) =>
+    reduceMotion
+      ? { opacity: 0 }
+      : mobile
+        ? { opacity: 0, x: 18 }
+        : { opacity: 0, y: 6 },
+  animate: {
+    opacity: 1,
+    x: 0,
+    y: 0,
+  },
+  exit: ({ mobile, reduceMotion }: ViewTransition) =>
+    reduceMotion
+      ? { opacity: 0 }
+      : mobile
+        ? { opacity: 0, x: -12 }
+        : { opacity: 0, y: -4 },
 } satisfies Variants;
 
 const reviewTemplate: ReviewSection[] = [
@@ -555,7 +575,7 @@ export function StudioApp({
             variants={viewTransitionVariants}
             key={
               view === "detail" || view === "editor"
-                ? `entry-${editorSessionKey}`
+                ? "entry-workspace"
                 : view
             }
             initial="initial"
@@ -568,7 +588,7 @@ export function StudioApp({
                   ? {
                       type: "spring",
                       bounce: 0,
-                      duration: mobileNavigation ? 0.4 : 0.38,
+                      duration: mobileNavigation ? 0.38 : 0.32,
                     }
                   : { duration: 0.16, ease: "easeOut" }
             }
@@ -619,7 +639,32 @@ export function StudioApp({
                 />
               </div>
             )}
-            <div className="detail-pane">{renderEditor()}</div>
+            <div className="detail-pane">
+              <AnimatePresence
+                mode="popLayout"
+                initial={false}
+                custom={viewTransition}
+              >
+                <motion.div
+                  className="detail-content-stage"
+                  key={editorSessionKey}
+                  custom={viewTransition}
+                  variants={detailContentVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={
+                    reduceMotion
+                      ? { duration: 0.08, ease: "easeOut" }
+                      : mobileNavigation
+                        ? { type: "spring", bounce: 0, duration: 0.3 }
+                        : { duration: 0.18, ease: [0.2, 0, 0, 1] }
+                  }
+                >
+                  {renderEditor()}
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </div>
         )}
         {view === "game" && selectedGame && (

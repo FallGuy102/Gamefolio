@@ -53,7 +53,15 @@ test("ships the adaptive Apple visual system and accessible fallbacks", async ()
 });
 
 test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => {
-  const [manifest, serviceWorker, source, migration, serviceGrant, proxy] = await Promise.all([
+  const [
+    manifest,
+    serviceWorker,
+    source,
+    migration,
+    serviceGrant,
+    starterMigration,
+    proxy,
+  ] = await Promise.all([
     readFile(new URL("../app/manifest.ts", import.meta.url), "utf8"),
     readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
     readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
@@ -64,6 +72,13 @@ test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => 
     readFile(
       new URL(
         "../supabase/migrations/20260729010000_grant_service_role_reads.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    readFile(
+      new URL(
+        "../supabase/migrations/20260729020000_seed_starter_entries.sql",
         import.meta.url,
       ),
       "utf8",
@@ -79,6 +94,12 @@ test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => 
   assert.match(migration, /to service_role/i);
   assert.match(serviceGrant, /public\.share_links/);
   assert.match(serviceGrant, /public\.entry_images/);
+  assert.match(starterMigration, /starter_content_seeded_at/);
+  assert.match(starterMigration, /让失败成为地图的一部分/);
+  assert.match(starterMigration, /《空洞骑士》的探索节奏/);
+  assert.match(starterMigration, /perform public\.seed_gamefolio_starter_content/);
+  assert.doesNotMatch(source, /sampleEntries|sample-/);
+  assert.match(source, /setEntries\(entryData\.entries\)/);
   assert.match(proxy, /updateSession/);
 });
 

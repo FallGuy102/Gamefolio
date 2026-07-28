@@ -78,42 +78,6 @@ const designThemes = [
   "玩家心理",
 ];
 
-const sampleEntries: Entry[] = [
-  {
-    id: "sample-1",
-    type: "idea",
-    title: "让失败成为地图的一部分",
-    body: "玩家每次失败的位置都留下微弱痕迹，逐渐形成一张属于自己的风险地图。它既是叙事，也是下一次行动的线索。",
-    designTheme: "核心玩法",
-    status: "draft",
-    favorite: true,
-    version: 1,
-    tags: ["失败反馈", "环境叙事"],
-    sections: [],
-    images: [],
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    id: "sample-2",
-    type: "review",
-    title: "《空洞骑士》的探索节奏",
-    body: "真正驱动探索的不是奖励密度，而是持续制造“我好像能到那里”的空间暗示。",
-    designTheme: "关卡设计",
-    status: "complete",
-    favorite: false,
-    version: 1,
-    tags: ["探索", "地图", "节奏"],
-    sections: [
-      { kind: "highlights", label: "核心亮点", content: "用声音、地标和未解锁路径共同制造方向感。", position: 0 },
-      { kind: "lessons", label: "值得借鉴的设计", content: "让玩家记住空间关系，而不是只跟随任务箭头。", position: 1 },
-    ],
-    images: [],
-    createdAt: new Date(Date.now() - 172800000).toISOString(),
-    updatedAt: new Date(Date.now() - 7200000).toISOString(),
-  },
-];
-
 const emptyInput = (type: EntryType = "idea"): EntryInput => ({
   type,
   title: "",
@@ -186,7 +150,7 @@ export function StudioApp({
   initialGameId?: string;
 }) {
   const [view, setView] = useState<View>(initialView);
-  const [entries, setEntries] = useState<Entry[]>(sampleEntries);
+  const [entries, setEntries] = useState<Entry[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [selectedEntryId, setSelectedEntryId] = useState(initialEntryId);
   const [selectedGameId, setSelectedGameId] = useState(initialGameId);
@@ -211,7 +175,7 @@ export function StudioApp({
         api<{ entries: Entry[] }>("/api/entries"),
         api<{ games: Game[] }>("/api/games"),
       ]);
-      setEntries(entryData.entries.length ? entryData.entries : sampleEntries);
+      setEntries(entryData.entries);
       setGames(gameData.games);
     } catch (error) {
       setEntries([]);
@@ -366,26 +330,24 @@ export function StudioApp({
         item.id === entry.id ? { ...item, favorite } : item,
       ),
     );
-    if (!entry.id.startsWith("sample-")) {
-      try {
-        const result = await api<{ entry: Entry }>(`/api/entries/${entry.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ ...entry, favorite }),
-        });
-        setEntries((current) =>
-          current.map((item) =>
-            item.id === result.entry.id ? result.entry : item,
-          ),
-        );
-      } catch {
-        setEntries((current) =>
-          current.map((item) =>
-            item.id === entry.id ? entry : item,
-          ),
-        );
-        await loadData();
-        setToast("收藏状态暂未同步");
-      }
+    try {
+      const result = await api<{ entry: Entry }>(`/api/entries/${entry.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ ...entry, favorite }),
+      });
+      setEntries((current) =>
+        current.map((item) =>
+          item.id === result.entry.id ? result.entry : item,
+        ),
+      );
+    } catch {
+      setEntries((current) =>
+        current.map((item) =>
+          item.id === entry.id ? entry : item,
+        ),
+      );
+      await loadData();
+      setToast("收藏状态暂未同步");
     }
   };
 
@@ -407,10 +369,7 @@ export function StudioApp({
       onSaved={(savedEntry) => {
         setEntries((current) => [
           savedEntry,
-          ...current.filter(
-            (item) =>
-              item.id !== savedEntry.id && !item.id.startsWith("sample-"),
-          ),
+          ...current.filter((item) => item.id !== savedEntry.id),
         ]);
         setSelectedEntryId(savedEntry.id);
         const depth = Number(window.history.state?.gamefolioDepth ?? 0);
@@ -1154,9 +1113,7 @@ function Editor({
   const onSavedRef = useRef(onSaved);
   const onToastRef = useRef(onToast);
   const offlineKeyRef = useRef(
-    entry?.id && !entry.id.startsWith("sample-")
-      ? `entry:${entry.id}`
-      : `new:${crypto.randomUUID()}`,
+    entry?.id ? `entry:${entry.id}` : `new:${crypto.randomUUID()}`,
   );
   const fileRef = useRef<HTMLInputElement>(null);
   const mobile = useMediaQuery("(max-width: 767px)");
@@ -1195,10 +1152,7 @@ function Editor({
       }
 
       const task = saveQueueRef.current.then(async () => {
-        const persistedEntryId =
-          entryIdRef.current && !entryIdRef.current.startsWith("sample-")
-            ? entryIdRef.current
-            : undefined;
+        const persistedEntryId = entryIdRef.current;
         const requestPayload: EntryInput = {
           ...snapshot,
           version: versionRef.current,
@@ -1316,10 +1270,7 @@ function Editor({
       onToast("图片需要联网后上传，文字草稿不会丢失");
       return;
     }
-    let targetId =
-      entryIdRef.current && !entryIdRef.current.startsWith("sample-")
-        ? entryIdRef.current
-        : undefined;
+    let targetId = entryIdRef.current;
     if (!targetId) targetId = (await save())?.id;
     if (!targetId) {
       onToast("请先填写标题或正文");
@@ -1378,10 +1329,7 @@ function Editor({
   };
 
   const createShare = async () => {
-    let targetId =
-      entryIdRef.current && !entryIdRef.current.startsWith("sample-")
-        ? entryIdRef.current
-        : undefined;
+    let targetId = entryIdRef.current;
     if (!targetId) targetId = (await save())?.id;
     if (!targetId) return;
     const result = await api<{ path: string }>("/api/shares", {
@@ -1394,7 +1342,7 @@ function Editor({
 
   const copyShareLink = async () => {
     let targetId = entryIdRef.current;
-    if (!targetId || targetId.startsWith("sample-")) {
+    if (!targetId) {
       targetId = (await save(true))?.id;
     }
     if (!targetId) return;
@@ -1409,7 +1357,7 @@ function Editor({
 
   const regenerateShare = async () => {
     const targetId = entryIdRef.current;
-    if (!targetId || targetId.startsWith("sample-")) return;
+    if (!targetId) return;
     await api(`/api/shares?entryId=${targetId}`, { method: "DELETE" });
     const result = await api<{ path: string }>("/api/shares", {
       method: "POST",
@@ -1428,7 +1376,6 @@ function Editor({
           </button>
           <div className="detail-type-pill">
             {draft.type === "idea" ? <><Lightbulb size={14} /> 灵感</> : <><Gamepad2 size={14} /> 游戏复盘</>}
-            {entryId.startsWith("sample-") ? " · 示例" : ""}
           </div>
           <div className="editor-actions">
             <button className="secondary-button" onClick={() => void copyShareLink()}>
@@ -1442,7 +1389,7 @@ function Editor({
               }}
             >
               <Pencil size={15} />
-              {entryId.startsWith("sample-") ? "使用此示例" : "编辑"}
+              编辑
             </button>
           </div>
         </header>
@@ -1894,7 +1841,7 @@ function Editor({
               </button>
             </div>
           </div>
-          {entryId && !entryId.startsWith("sample-") && (
+          {entryId && (
             <button
               className="danger-button"
               onClick={async () => {

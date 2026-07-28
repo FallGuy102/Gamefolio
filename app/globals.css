@@ -2206,6 +2206,15 @@ button:active {
   color: var(--tertiary);
 }
 
+.sidebar-section button.selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sidebar-section button.selected svg {
+  color: currentColor;
+}
+
 .sync-card {
   gap: 11px;
   padding: 12px;
@@ -2970,12 +2979,44 @@ button:active {
   gap: 4px;
 }
 
-.status-control select {
-  min-height: 34px;
-  padding: 6px 25px 6px 10px;
-  border: 0;
-  border-radius: 8px;
+.status-segmented {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 11px;
   background: var(--surface-muted);
+}
+
+.status-segmented button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--secondary);
+  font-size: 0.75rem;
+  font-weight: 560;
+  white-space: nowrap;
+}
+
+.status-segmented button svg {
+  color: var(--tertiary);
+}
+
+.status-segmented button.selected {
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.13),
+    inset 0 0 0 0.5px color-mix(in srgb, var(--line-strong) 65%, transparent);
+}
+
+.status-segmented button.selected svg {
+  color: var(--accent);
 }
 
 .dialog-overlay {
@@ -3632,6 +3673,20 @@ body:has(.share-shell) {
     align-items: flex-start;
     flex-direction: column;
     gap: 12px;
+  }
+
+  .status-control {
+    width: 100%;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .status-segmented {
+    width: 100%;
+  }
+
+  .status-segmented button {
+    min-height: 42px;
   }
 
   .bottom-nav {

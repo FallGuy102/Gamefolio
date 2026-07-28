@@ -130,3 +130,23 @@ test("uses dark-mode-safe classification controls instead of a native theme sele
   assert.match(styles, /\.classification-panel/);
   assert.match(styles, /\.theme-option\.selected/);
 });
+
+test("defaults new entries to complete and keeps library quick filters functional", async () => {
+  const [source, styles] = await Promise.all([
+    readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(
+    source,
+    /const emptyInput[\s\S]{0,400}status:\s*"complete"/,
+  );
+  assert.match(source, /`\/library\?filter=\$\{filter\}`/);
+  assert.match(source, /navigate\("library", \{ filter: "idea"/);
+  assert.match(source, /navigate\("library", \{ filter: "review"/);
+  assert.match(source, /filter:\s*"favorite"/);
+  assert.match(source, /className="status-segmented"/);
+  assert.doesNotMatch(source, /value=\{draft\.status\}/);
+  assert.match(styles, /\.status-segmented button\.selected/);
+  assert.match(styles, /\.sidebar-section button\.selected/);
+});

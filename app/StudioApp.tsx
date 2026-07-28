@@ -45,10 +45,12 @@ import { listOfflineDrafts, removeOfflineDraft, saveOfflineDraft } from "./lib/o
 
 type View = "home" | "library" | "detail" | "editor" | "game" | "settings";
 type SyncState = "saved" | "saving" | "offline" | "conflict" | "error";
+type LibraryFilter = "all" | EntryType | "favorite";
 type NavigateOptions = {
   entryId?: string;
   gameId?: string;
   type?: EntryType;
+  filter?: LibraryFilter;
   replace?: boolean;
 };
 
@@ -118,11 +120,18 @@ const emptyInput = (type: EntryType = "idea"): EntryInput => ({
   body: "",
   gameId: null,
   designTheme: "",
-  status: "draft",
+  status: "complete",
   favorite: false,
   tags: [],
   sections: type === "review" ? reviewTemplate.map((section) => ({ ...section })) : [],
 });
+
+const parseLibraryFilter = (search: string): LibraryFilter => {
+  const filter = new URLSearchParams(search).get("filter");
+  return filter === "idea" || filter === "review" || filter === "favorite"
+    ? filter
+    : "all";
+};
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat("zh-CN", {
@@ -184,6 +193,7 @@ export function StudioApp({
   const [editorSessionKey, setEditorSessionKey] = useState(
     initialEntryId ?? "new",
   );
+  const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>("all");
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
   const [composeOpen, setComposeOpen] = useState(false);
@@ -270,6 +280,7 @@ export function StudioApp({
       } else if (path === "/library") {
         setView("library");
         setSelectedEntryId(undefined);
+        setLibraryFilter(parseLibraryFilter(window.location.search));
       } else if (path === "/settings") {
         setView("settings");
         setSelectedEntryId(undefined);
@@ -290,6 +301,7 @@ export function StudioApp({
         window.location.href,
       );
     }
+    syncViewFromUrl();
     window.addEventListener("popstate", syncViewFromUrl);
     return () => window.removeEventListener("popstate", syncViewFromUrl);
   }, []);
@@ -309,7 +321,11 @@ export function StudioApp({
     setSelectedEntryId(options?.entryId);
     setSelectedGameId(options?.gameId);
     let path = "/";
-    if (next === "library") path = "/library";
+    if (next === "library") {
+      const filter = options?.filter ?? "all";
+      setLibraryFilter(filter);
+      path = filter === "all" ? "/library" : `/library?filter=${filter}`;
+    }
     if (next === "settings") path = "/settings";
     if (next === "detail" || next === "editor") {
       setEditorSessionKey(options?.entryId ?? "new");
@@ -459,15 +475,36 @@ export function StudioApp({
         </button>
         <div className="sidebar-section">
           <p>快速筛选</p>
-          <button onClick={() => navigate("library")}>
+          <button
+            className={view === "library" && libraryFilter === "idea" ? "selected" : ""}
+            aria-pressed={view === "library" && libraryFilter === "idea"}
+            onClick={() =>
+              navigate("library", { filter: "idea", replace: view === "library" })
+            }
+          >
             <Lightbulb size={16} />
             灵感
           </button>
-          <button onClick={() => navigate("library")}>
+          <button
+            className={view === "library" && libraryFilter === "review" ? "selected" : ""}
+            aria-pressed={view === "library" && libraryFilter === "review"}
+            onClick={() =>
+              navigate("library", { filter: "review", replace: view === "library" })
+            }
+          >
             <Gamepad2 size={16} />
             游戏复盘
           </button>
-          <button onClick={() => navigate("library")}>
+          <button
+            className={view === "library" && libraryFilter === "favorite" ? "selected" : ""}
+            aria-pressed={view === "library" && libraryFilter === "favorite"}
+            onClick={() =>
+              navigate("library", {
+                filter: "favorite",
+                replace: view === "library",
+              })
+            }
+          >
             <Star size={16} />
             已收藏
           </button>
@@ -511,7 +548,15 @@ export function StudioApp({
           <Dashboard entries={entries} loading={loading} navigate={navigate} />
         )}
         {view === "library" && (
-          <Library entries={entries} navigate={navigate} onFavorite={toggleFavorite} />
+          <Library
+            entries={entries}
+            filter={libraryFilter}
+            onFilterChange={(filter) =>
+              navigate("library", { filter, replace: true })
+            }
+            navigate={navigate}
+            onFavorite={toggleFavorite}
+          />
         )}
         {(view === "detail" || view === "editor") && selectedEntryId && loading && !selectedEntry && (
           <div className="page detail-loading" role="status">
@@ -537,6 +582,8 @@ export function StudioApp({
                 <Library
                   compact
                   entries={entries}
+                  filter={libraryFilter}
+                  onFilterChange={setLibraryFilter}
                   selectedEntryId={selectedEntryId}
                   navigate={navigate}
                   onFavorite={toggleFavorite}
@@ -939,21 +986,22 @@ function EntryRow({
 
 function Library({
   entries,
+  filter,
+  onFilterChange,
   navigate,
   onFavorite,
   compact = false,
   selectedEntryId,
 }: {
   entries: Entry[];
+  filter: LibraryFilter;
+  onFilterChange: (filter: LibraryFilter) => void;
   navigate: (view: View, options?: NavigateOptions) => void;
   onFavorite: (entry: Entry) => void;
   compact?: boolean;
   selectedEntryId?: string;
 }) {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<
-    "all" | EntryType | "favorite"
-  >("all");
   const filtered = entries.filter((entry) => {
     const matchesFilter =
       filter === "all" ||
@@ -998,7 +1046,8 @@ function Library({
             <button
               key={value}
               className={filter === value ? "selected" : ""}
-              onClick={() => setFilter(value)}
+              aria-pressed={filter === value}
+              onClick={() => onFilterChange(value)}
             >
               {label}
             </button>
@@ -1792,21 +1841,33 @@ function Editor({
         </section>
 
         <div className="editor-footer">
-          <label className="status-control">
+          <div className="status-control">
             <span>状态</span>
-            <select
-              value={draft.status}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  status: event.target.value as "draft" | "complete",
-                }))
-              }
-            >
-              <option value="draft">草稿</option>
-              <option value="complete">已完成</option>
-            </select>
-          </label>
+            <div className="status-segmented" role="group" aria-label="条目状态">
+              <button
+                type="button"
+                className={draft.status === "draft" ? "selected" : ""}
+                aria-pressed={draft.status === "draft"}
+                onClick={() =>
+                  setDraft((current) => ({ ...current, status: "draft" }))
+                }
+              >
+                <FileText size={14} />
+                草稿
+              </button>
+              <button
+                type="button"
+                className={draft.status === "complete" ? "selected" : ""}
+                aria-pressed={draft.status === "complete"}
+                onClick={() =>
+                  setDraft((current) => ({ ...current, status: "complete" }))
+                }
+              >
+                <CircleCheck size={14} />
+                已完成
+              </button>
+            </div>
+          </div>
           {entryId && !entryId.startsWith("sample-") && (
             <button
               className="danger-button"

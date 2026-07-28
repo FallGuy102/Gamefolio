@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileQuestion, Sparkles } from "lucide-react";
+import { ChevronRight, FileQuestion, Link2, Sparkles } from "lucide-react";
 import type { Entry } from "./lib/types";
+import {
+  parseReferenceLink,
+  REFERENCE_LINK_KIND,
+  safeReferenceUrl,
+} from "./lib/reference-links";
 
 const labels: Record<string, string> = {
   impression: "一句话总体印象",
@@ -54,12 +59,47 @@ export function SharedEntry({ token }: { token: string }) {
           {entry.tags.map((tag) => <span key={tag}>#{tag}</span>)}
         </div>
         {entry.body && <p className="shared-lead">{entry.body}</p>}
-        {entry.sections.filter((section) => section.content).map((section) => (
+        {entry.sections.filter(
+          (section) => section.kind !== REFERENCE_LINK_KIND && section.content,
+        ).map((section) => (
           <section className="shared-section" key={section.kind}>
             <h2>{labels[section.kind] ?? section.kind}</h2>
             <p>{section.content}</p>
           </section>
         ))}
+        {entry.sections.some((section) => {
+          if (section.kind !== REFERENCE_LINK_KIND) return false;
+          return Boolean(safeReferenceUrl(parseReferenceLink(section).url));
+        }) && (
+          <section className="shared-reference-links">
+            <h2>参考链接</h2>
+            <div className="reference-link-list">
+              {entry.sections
+                .filter((section) => section.kind === REFERENCE_LINK_KIND)
+                .map((section, index) => {
+                  const link = parseReferenceLink(section);
+                  const href = safeReferenceUrl(link.url);
+                  if (!href) return null;
+                  return (
+                    <a
+                      className="reference-link-card"
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      key={section.id ?? `${section.kind}-${index}`}
+                    >
+                      <span className="reference-link-icon"><Link2 size={17} /></span>
+                      <span>
+                        <strong>{link.title || new URL(href).hostname}</strong>
+                        <small>{link.url}</small>
+                      </span>
+                      <ChevronRight size={17} />
+                    </a>
+                  );
+                })}
+            </div>
+          </section>
+        )}
         {entry.images.length > 0 && (
           <section className="shared-images">
             {entry.images.map((image) => (

@@ -247,3 +247,22 @@ test("defaults new entries to complete and keeps library quick filters functiona
   assert.match(styles, /\.status-slider button\.selected/);
   assert.match(styles, /\.sidebar-section button\.selected/);
 });
+
+test("shows the app icon, labels favorites clearly, and persists safe reference links", async () => {
+  const [source, shared, links, styles] = await Promise.all([
+    readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/SharedEntry.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/reference-links.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(source, /src="\/icon\.svg"/);
+  assert.match(source, /条收藏条目/);
+  assert.match(source, /添加链接/);
+  assert.match(source, /REFERENCE_LINK_KIND/);
+  assert.match(source, /safeReferenceUrl/);
+  assert.match(shared, /参考链接/);
+  assert.match(links, /url\.protocol === "http:" \|\| url\.protocol === "https:"/);
+  assert.match(styles, /\.reference-link-editor-row/);
+  assert.match(styles, /\.reference-link-card:active/);
+});

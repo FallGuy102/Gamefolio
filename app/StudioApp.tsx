@@ -1,6 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
+import NextImage from "next/image";
 import {
   AnimatePresence,
   animate,
@@ -24,6 +25,7 @@ import {
   House,
   ImagePlus,
   LibraryBig,
+  Link2,
   Lightbulb,
   LogOut,
   Pencil,
@@ -43,6 +45,12 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Entry, EntryImage, EntryInput, EntryType, Game, ReviewSection } from "./lib/types";
 import { listOfflineDrafts, removeOfflineDraft, saveOfflineDraft } from "./lib/offline";
+import {
+  parseReferenceLink,
+  REFERENCE_LINK_KIND,
+  safeReferenceUrl,
+  serializeReferenceLink,
+} from "./lib/reference-links";
 
 type View = "home" | "library" | "detail" | "editor" | "game" | "settings";
 type SyncState = "saved" | "saving" | "offline" | "conflict" | "error";
@@ -148,6 +156,16 @@ function entryPayloadFingerprint(input: EntryInput) {
 const sectionLabels: Record<string, string> = Object.fromEntries(
   reviewTemplate.map((section) => [section.kind, section.label ?? section.kind]),
 );
+
+const isReferenceLink = (section: ReviewSection) =>
+  section.kind === REFERENCE_LINK_KIND;
+
+const createReferenceLinkSection = (): ReviewSection => ({
+  id: `new-link-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  kind: REFERENCE_LINK_KIND,
+  content: serializeReferenceLink({ title: "", url: "" }),
+  position: 0,
+});
 
 const designThemes = [
   "核心玩法",
@@ -975,8 +993,12 @@ function Dashboard({
           <h1>今天捕捉到了什么？</h1>
           <p>把稍纵即逝的感受，变成以后用得上的设计判断。</p>
         </div>
-        <button className="avatar" aria-label="个人账户">
-          研
+        <button
+          className="avatar"
+          aria-label="打开设置"
+          onClick={() => navigate("settings")}
+        >
+          <NextImage src="/icon.svg" alt="" width={42} height={42} priority />
         </button>
       </header>
 
@@ -1012,7 +1034,7 @@ function Dashboard({
         </article>
         <article>
           <strong>{entries.filter((entry) => entry.favorite).length}</strong>
-          <span>个重要洞察</span>
+          <span>条收藏条目</span>
         </article>
         <article>
           <strong>{drafts}</strong>
@@ -1249,14 +1271,17 @@ function Editor({
           favorite: entry.favorite,
           tags: entry.tags,
           sections:
-            entry.type === "review"
-              ? reviewTemplate.map(
-                  (template) =>
-                    entry.sections.find(
-                      (section) => section.kind === template.kind,
-                    ) ?? { ...template },
-                )
-              : [],
+            [
+              ...(entry.type === "review"
+                ? reviewTemplate.map(
+                    (template) =>
+                      entry.sections.find(
+                        (section) => section.kind === template.kind,
+                      ) ?? { ...template },
+                  )
+                : []),
+              ...entry.sections.filter(isReferenceLink),
+            ],
           version: entry.version,
         }
       : emptyInput(defaultType),
@@ -1291,6 +1316,11 @@ function Editor({
   const payload = useMemo<EntryInput>(
     () => ({
       ...draft,
+      sections: draft.sections?.filter(
+        (section) =>
+          !isReferenceLink(section) ||
+          Boolean(parseReferenceLink(section).url.trim()),
+      ),
       tags: tagText
         .split(/[，,\n]/)
         .map((tag) => tag.trim())
@@ -1437,14 +1467,17 @@ function Editor({
       ...current,
       type,
       sections:
-        type === "review"
-          ? reviewTemplate.map(
-              (section) =>
-                current.sections?.find(
-                  (item) => item.kind === section.kind,
-                ) ?? { ...section },
-            )
-          : [],
+        [
+          ...(type === "review"
+            ? reviewTemplate.map(
+                (section) =>
+                  current.sections?.find(
+                    (item) => item.kind === section.kind,
+                  ) ?? { ...section },
+              )
+            : []),
+          ...(current.sections?.filter(isReferenceLink) ?? []),
+        ],
     }));
   };
 
@@ -1612,16 +1645,27 @@ function Editor({
             </section>
           )}
 
-          {!!draft.sections?.filter((section) => section.content.trim()).length && (
+          {!!draft.sections?.filter(
+            (section) => !isReferenceLink(section) && section.content.trim(),
+          ).length && (
             <section className="detail-sections">
               <div className="content-divider">
                 <span>复盘笔记</span>
-                <small>{draft.sections.filter((section) => section.content.trim()).length} 个部分</small>
+                <small>
+                  {draft.sections.filter(
+                    (section) => !isReferenceLink(section) && section.content.trim(),
+                  ).length} 个部分
+                </small>
               </div>
               {draft.sections
-                .filter((section) => section.content.trim())
+                .filter(
+                  (section) => !isReferenceLink(section) && section.content.trim(),
+                )
                 .map((section, index) => (
-                  <section className="detail-section" key={section.kind}>
+                  <section
+                    className="detail-section"
+                    key={section.id ?? `${section.kind}-${index}`}
+                  >
                     <p>
                       <b>{String(index + 1).padStart(2, "0")}</b>
                       {sectionLabels[section.kind] ?? section.kind}
@@ -1629,6 +1673,46 @@ function Editor({
                     <div>{section.content}</div>
                   </section>
                 ))}
+            </section>
+          )}
+
+          {!!draft.sections?.filter((section) => {
+            if (!isReferenceLink(section)) return false;
+            return Boolean(safeReferenceUrl(parseReferenceLink(section).url));
+          }).length && (
+            <section className="reference-links detail-reference-links">
+              <div className="content-divider">
+                <span>参考链接</span>
+                <small>
+                  {draft.sections.filter((section) => {
+                    if (!isReferenceLink(section)) return false;
+                    return Boolean(safeReferenceUrl(parseReferenceLink(section).url));
+                  }).length} 条
+                </small>
+              </div>
+              <div className="reference-link-list">
+                {draft.sections.filter(isReferenceLink).map((section, index) => {
+                  const link = parseReferenceLink(section);
+                  const href = safeReferenceUrl(link.url);
+                  if (!href) return null;
+                  return (
+                    <a
+                      className="reference-link-card"
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      key={section.id ?? `${section.kind}-${index}`}
+                    >
+                      <span className="reference-link-icon"><Link2 size={17} /></span>
+                      <span>
+                        <strong>{link.title || new URL(href).hostname}</strong>
+                        <small>{link.url}</small>
+                      </span>
+                      <ChevronRight size={17} />
+                    </a>
+                  );
+                })}
+              </div>
             </section>
           )}
 
@@ -1861,7 +1945,7 @@ function Editor({
               <span>引导式复盘</span>
               <small>所有模块均可跳过</small>
             </div>
-            {draft.sections?.map((section, index) => (
+            {draft.sections?.filter((section) => !isReferenceLink(section)).map((section, index) => (
               <label className="review-field" key={section.kind}>
                 <span>
                   <b>{String(index + 1).padStart(2, "0")}</b>
@@ -1886,6 +1970,119 @@ function Editor({
             ))}
           </section>
         )}
+
+        <section className="reference-links reference-links-editor">
+          <div className="content-divider">
+            <span>参考链接</span>
+            <button
+              type="button"
+              className="add-reference-link"
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  sections: [
+                    ...(current.sections ?? []),
+                    {
+                      ...createReferenceLinkSection(),
+                      position: current.sections?.length ?? 0,
+                    },
+                  ],
+                }))
+              }
+            >
+              <Plus size={14} /> 添加链接
+            </button>
+          </div>
+          {!!draft.sections?.filter(isReferenceLink).length && (
+            <div className="reference-link-editor-list">
+              {draft.sections.filter(isReferenceLink).map((section, index) => {
+                const link = parseReferenceLink(section);
+                const href = safeReferenceUrl(link.url);
+                return (
+                  <div
+                    className="reference-link-editor-row"
+                    key={section.id ?? `${section.kind}-${index}`}
+                  >
+                    <span className="reference-link-icon"><Link2 size={17} /></span>
+                    <div className="reference-link-fields">
+                      <input
+                        value={link.title}
+                        onChange={(event) => {
+                          const title = event.target.value;
+                          setDraft((current) => ({
+                            ...current,
+                            sections: current.sections?.map((item) =>
+                              item === section
+                                ? {
+                                    ...item,
+                                    content: serializeReferenceLink({
+                                      ...parseReferenceLink(item),
+                                      title,
+                                    }),
+                                  }
+                                : item,
+                            ),
+                          }));
+                        }}
+                        placeholder="链接标题（可选）"
+                        maxLength={160}
+                      />
+                      <input
+                        value={link.url}
+                        inputMode="url"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        aria-invalid={Boolean(link.url.trim() && !href)}
+                        onChange={(event) => {
+                          const url = event.target.value;
+                          setDraft((current) => ({
+                            ...current,
+                            sections: current.sections?.map((item) =>
+                              item === section
+                                ? {
+                                    ...item,
+                                    content: serializeReferenceLink({
+                                      ...parseReferenceLink(item),
+                                      url,
+                                    }),
+                                  }
+                                : item,
+                            ),
+                          }));
+                        }}
+                        placeholder="https://example.com"
+                      />
+                    </div>
+                    {href && (
+                      <a
+                        className="open-reference-link"
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label="打开链接"
+                      >
+                        <ChevronRight size={17} />
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      className="remove-reference-link"
+                      aria-label="删除链接"
+                      onClick={() =>
+                        setDraft((current) => ({
+                          ...current,
+                          sections: current.sections?.filter((item) => item !== section),
+                        }))
+                      }
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
         <section className="image-section">
           <div className="content-divider">
@@ -2376,10 +2573,17 @@ function Settings({
       const imageFolder = zip.folder("images");
       for (const entry of data.entries) {
         const sections = entry.sections
-          .map(
-            (section) =>
-              `## ${sectionLabels[section.kind] ?? section.kind}\n\n${section.content}`,
-          )
+          .map((section) => {
+            if (isReferenceLink(section)) {
+              const link = parseReferenceLink(section);
+              const href = safeReferenceUrl(link.url);
+              return href
+                ? `- [${link.title || href}](${href})`
+                : "";
+            }
+            return `## ${sectionLabels[section.kind] ?? section.kind}\n\n${section.content}`;
+          })
+          .filter(Boolean)
           .join("\n\n");
         notes?.file(
           `${entry.title.replace(/[\\/:*?"<>|]/g, "-") || entry.id}.md`,

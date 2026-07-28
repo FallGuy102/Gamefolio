@@ -10,7 +10,27 @@ test("build contains the complete Gamefolio application shell", async () => {
   assert.match(source, /Gamefolio/);
   assert.match(source, /游戏设计灵感库/);
   assert.match(source, /今天捕捉到了什么/);
+  assert.match(source, /type View = "home" \| "library" \| "detail" \| "editor"/);
+  assert.match(source, /ComposeSheet/);
+  assert.match(source, /PwaEdgeBack/);
+  assert.match(source, /history\.back\(\)/);
   assert.doesNotMatch(source, /codex-preview|Your site is taking shape/);
+});
+
+test("ships the adaptive Apple visual system and accessible fallbacks", async () => {
+  const [styles, entryPage, packageJson] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/entries/[id]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+  assert.match(styles, /--accent:\s*#007aff/i);
+  assert.match(styles, /prefers-reduced-transparency/);
+  assert.match(styles, /prefers-contrast:\s*more/);
+  assert.match(styles, /@media \(max-width: 767px\)/);
+  assert.match(styles, /@media \(min-width: 1100px\)/);
+  assert.match(entryPage, /initialView="detail"/);
+  assert.match(packageJson, /"lucide-react"/);
+  assert.match(packageJson, /"motion"/);
 });
 
 test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => {

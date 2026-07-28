@@ -1,12 +1,53 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
+import {
+  AnimatePresence,
+  animate,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+} from "motion/react";
+import {
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  CircleCheck,
+  Cloud,
+  CloudOff,
+  Download,
+  FileText,
+  Gamepad2,
+  House,
+  ImagePlus,
+  LibraryBig,
+  Lightbulb,
+  LogOut,
+  Pencil,
+  Plus,
+  Search,
+  Settings as SettingsIcon,
+  Share2,
+  Sparkles,
+  Star,
+  Trash2,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Entry, EntryImage, EntryInput, EntryType, Game, ReviewSection } from "./lib/types";
 import { listOfflineDrafts, removeOfflineDraft, saveOfflineDraft } from "./lib/offline";
 
-type View = "home" | "library" | "editor" | "game" | "settings";
+type View = "home" | "library" | "detail" | "editor" | "game" | "settings";
 type SyncState = "saved" | "saving" | "offline" | "conflict" | "error";
+type NavigateOptions = {
+  entryId?: string;
+  gameId?: string;
+  type?: EntryType;
+  replace?: boolean;
+};
 
 const reviewTemplate: ReviewSection[] = [
   { kind: "impression", label: "一句话总体印象", content: "", position: 0 },
@@ -101,6 +142,18 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const update = () => setMatches(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, [query]);
+  return matches;
+}
+
 export function StudioApp({
   initialView = "home",
   initialEntryId,
@@ -117,9 +170,12 @@ export function StudioApp({
   const [selectedGameId, setSelectedGameId] = useState(initialGameId);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [navigationDirection, setNavigationDirection] = useState(1);
   const [online, setOnline] = useState(() =>
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
+  const reduceMotion = useReducedMotion();
 
   const loadData = useCallback(async () => {
     try {
@@ -185,6 +241,7 @@ export function StudioApp({
   useEffect(() => {
     const syncViewFromUrl = () => {
       const path = window.location.pathname;
+      setNavigationDirection(-1);
       if (path === "/") {
         setView("home");
         setSelectedEntryId(undefined);
@@ -195,7 +252,7 @@ export function StudioApp({
         setView("settings");
         setSelectedEntryId(undefined);
       } else if (path.startsWith("/entries/")) {
-        setView("editor");
+        setView(path === "/entries/new" ? "editor" : "detail");
         const id = path.split("/")[2];
         setSelectedEntryId(id === "new" ? undefined : id);
       } else if (path.startsWith("/games/")) {
@@ -203,6 +260,13 @@ export function StudioApp({
         setSelectedGameId(path.split("/")[2]);
       }
     };
+    if (typeof window.history.state?.gamefolioDepth !== "number") {
+      window.history.replaceState(
+        { ...window.history.state, gamefolioDepth: 0 },
+        "",
+        window.location.href,
+      );
+    }
     window.addEventListener("popstate", syncViewFromUrl);
     return () => window.removeEventListener("popstate", syncViewFromUrl);
   }, []);
@@ -215,36 +279,119 @@ export function StudioApp({
 
   const navigate = (
     next: View,
-    options?: { entryId?: string; gameId?: string; type?: EntryType },
+    options?: NavigateOptions,
   ) => {
+    setNavigationDirection(1);
     setView(next);
     setSelectedEntryId(options?.entryId);
     setSelectedGameId(options?.gameId);
     let path = "/";
     if (next === "library") path = "/library";
     if (next === "settings") path = "/settings";
-    if (next === "editor") {
+    if (next === "detail" || next === "editor") {
       path = options?.entryId
         ? `/entries/${options.entryId}`
         : `/entries/new?type=${options?.type ?? "idea"}`;
     }
     if (next === "game" && options?.gameId) path = `/games/${options.gameId}`;
-    window.history.pushState({}, "", path);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    const depth = Number(window.history.state?.gamefolioDepth ?? 0);
+    const state = { gamefolioDepth: options?.replace ? depth : depth + 1 };
+    if (options?.replace) {
+      window.history.replaceState(state, "", path);
+    } else {
+      window.history.pushState(state, "", path);
+    }
+    window.scrollTo({ top: 0, behavior: "auto" });
+  };
+
+  const navigateBack = () => {
+    const depth = Number(window.history.state?.gamefolioDepth ?? 0);
+    if (depth > 0) {
+      setNavigationDirection(-1);
+      window.history.back();
+      return;
+    }
+    navigate("library", { replace: true });
   };
 
   const selectedEntry = entries.find((entry) => entry.id === selectedEntryId);
   const selectedGame = games.find((game) => game.id === selectedGameId);
 
+  const toggleFavorite = async (entry: Entry) => {
+    setEntries((current) =>
+      current.map((item) =>
+        item.id === entry.id ? { ...item, favorite: !item.favorite } : item,
+      ),
+    );
+    if (!entry.id.startsWith("sample-")) {
+      await api(`/api/entries/${entry.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ ...entry, favorite: !entry.favorite }),
+      }).catch(() => setToast("收藏状态暂未同步"));
+    }
+  };
+
+  const renderEditor = () => (
+    <Editor
+      key={
+        selectedEntryId ??
+        new URLSearchParams(
+          typeof location !== "undefined" ? location.search : "",
+        ).get("type") ??
+        "new"
+      }
+      entry={selectedEntry}
+      defaultType={
+        typeof location !== "undefined" &&
+        new URLSearchParams(location.search).get("type") === "review"
+          ? "review"
+          : "idea"
+      }
+      games={games}
+      online={online}
+      initialEditing={view === "editor"}
+      onModeChange={(editing) => setView(editing ? "editor" : "detail")}
+      onBack={navigateBack}
+      onSaved={(savedEntry) => {
+        setEntries((current) => [
+          savedEntry,
+          ...current.filter(
+            (item) =>
+              item.id !== savedEntry.id && !item.id.startsWith("sample-"),
+          ),
+        ]);
+        setSelectedEntryId(savedEntry.id);
+        const depth = Number(window.history.state?.gamefolioDepth ?? 0);
+        window.history.replaceState(
+          { gamefolioDepth: depth },
+          "",
+          `/entries/${savedEntry.id}`,
+        );
+      }}
+      onDeleted={(id) => {
+        setEntries((current) => current.filter((entry) => entry.id !== id));
+        navigate("library", { replace: true });
+        setToast("条目已删除");
+      }}
+      onGameCreated={(game) =>
+        setGames((current) => [
+          game,
+          ...current.filter((item) => item.id !== game.id),
+        ])
+      }
+      onToast={setToast}
+    />
+  );
+
   return (
-    <div className="app-root">
+    <div className={`app-root view-${view}`}>
       <aside className="sidebar">
         <button
           className="brand"
           onClick={() => navigate("home")}
           aria-label="返回首页"
         >
-          <span className="brand-mark">G</span>
+          <span className="brand-mark"><Sparkles size={18} strokeWidth={2.2} /></span>
           <span>
             <strong>Gamefolio</strong>
             <small>游戏设计灵感库</small>
@@ -253,40 +400,44 @@ export function StudioApp({
         <nav className="primary-nav" aria-label="主要导航">
           <NavButton
             active={view === "home"}
-            icon="⌂"
+            icon={House}
             label="今日"
             onClick={() => navigate("home")}
           />
           <NavButton
-            active={view === "library"}
-            icon="▦"
+            active={view === "library" || view === "detail" || view === "editor"}
+            icon={LibraryBig}
             label="资料库"
             onClick={() => navigate("library")}
           />
           <NavButton
             active={view === "settings"}
-            icon="◎"
+            icon={SettingsIcon}
             label="设置"
             onClick={() => navigate("settings")}
           />
         </nav>
+        <button className="sidebar-compose" onClick={() => setComposeOpen(true)}>
+          <Plus size={17} />
+          新建记录
+        </button>
         <div className="sidebar-section">
           <p>快速筛选</p>
           <button onClick={() => navigate("library")}>
-            <span className="dot violet" />
+            <Lightbulb size={16} />
             灵感
           </button>
           <button onClick={() => navigate("library")}>
-            <span className="dot mint" />
+            <Gamepad2 size={16} />
             游戏复盘
           </button>
           <button onClick={() => navigate("library")}>
-            <span className="dot amber" />
+            <Star size={16} />
             已收藏
           </button>
         </div>
         <div className="sync-card">
-          <span className={`online-dot ${online ? "" : "offline"}`} />
+          {online ? <Cloud size={17} /> : <CloudOff size={17} />}
           <div>
             <strong>{online ? "云端已连接" : "当前离线"}</strong>
             <small>{online ? "内容会自动同步" : "文字草稿保存在设备上"}</small>
@@ -295,36 +446,27 @@ export function StudioApp({
       </aside>
 
       <main className="main-content">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            className="view-stage"
+            key={view === "detail" || view === "editor" ? `entry-${selectedEntryId}` : view}
+            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: navigationDirection * 18 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: navigationDirection * -12 }}
+            transition={{ type: "spring", bounce: 0, duration: 0.36 }}
+          >
         {view === "home" && (
           <Dashboard entries={entries} loading={loading} navigate={navigate} />
         )}
         {view === "library" && (
-          <Library
-            entries={entries}
-            navigate={navigate}
-            onFavorite={async (entry) => {
-              setEntries((current) =>
-                current.map((item) =>
-                  item.id === entry.id
-                    ? { ...item, favorite: !item.favorite }
-                    : item,
-                ),
-              );
-              if (!entry.id.startsWith("sample-")) {
-                await api(`/api/entries/${entry.id}`, {
-                  method: "PATCH",
-                  body: JSON.stringify({ ...entry, favorite: !entry.favorite }),
-                }).catch(() => setToast("收藏状态暂未同步"));
-              }
-            }}
-          />
+          <Library entries={entries} navigate={navigate} onFavorite={toggleFavorite} />
         )}
-        {view === "editor" && selectedEntryId && loading && !selectedEntry && (
+        {(view === "detail" || view === "editor") && selectedEntryId && loading && !selectedEntry && (
           <div className="page detail-loading" role="status">
             正在载入条目…
           </div>
         )}
-        {view === "editor" && selectedEntryId && !loading && !selectedEntry && (
+        {(view === "detail" || view === "editor") && selectedEntryId && !loading && !selectedEntry && (
           <div className="page detail-loading">
             <strong>没有找到这条记录</strong>
             <button className="secondary-button" onClick={() => navigate("library")}>
@@ -332,57 +474,21 @@ export function StudioApp({
             </button>
           </div>
         )}
-        {view === "editor" && (!selectedEntryId || selectedEntry) && (
-          <Editor
-            key={
-              selectedEntryId ??
-              new URLSearchParams(
-                typeof location !== "undefined" ? location.search : "",
-              ).get("type") ??
-              "new"
-            }
-            entry={selectedEntry}
-            defaultType={
-              typeof location !== "undefined" &&
-              new URLSearchParams(location.search).get("type") === "review"
-                ? "review"
-                : "idea"
-            }
-            games={games}
-            online={online}
-            onBack={() => navigate("library")}
-            onSaved={(savedEntry) => {
-              setEntries((current) => [
-                savedEntry,
-                ...current.filter(
-                  (item) =>
-                    item.id !== savedEntry.id &&
-                    !item.id.startsWith("sample-"),
-                ),
-              ]);
-              if (
-                selectedEntryId &&
-                !selectedEntryId.startsWith("sample-")
-              ) {
-                setSelectedEntryId(savedEntry.id);
-              }
-              window.history.replaceState({}, "", `/entries/${savedEntry.id}`);
-            }}
-            onDeleted={(id) => {
-              setEntries((current) =>
-                current.filter((entry) => entry.id !== id),
-              );
-              navigate("library");
-              setToast("条目已删除");
-            }}
-            onGameCreated={(game) =>
-              setGames((current) => [
-                game,
-                ...current.filter((item) => item.id !== game.id),
-              ])
-            }
-            onToast={setToast}
-          />
+        {(view === "detail" || view === "editor") && (!selectedEntryId || selectedEntry) && (
+          <div className="library-workspace">
+            {selectedEntryId && (
+              <div className="collection-pane">
+                <Library
+                  compact
+                  entries={entries}
+                  selectedEntryId={selectedEntryId}
+                  navigate={navigate}
+                  onFavorite={toggleFavorite}
+                />
+              </div>
+            )}
+            <div className="detail-pane">{renderEditor()}</div>
+          </div>
         )}
         {view === "game" && selectedGame && (
           <GameDetail
@@ -396,34 +502,131 @@ export function StudioApp({
         {view === "settings" && (
           <Settings entries={entries} onToast={setToast} />
         )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       <nav className="bottom-nav" aria-label="移动端导航">
         <NavButton
           active={view === "home"}
-          icon="⌂"
+          icon={House}
           label="今日"
           onClick={() => navigate("home")}
         />
-        <button
-          className="mobile-create"
-          onClick={() => navigate("editor", { type: "idea" })}
-          aria-label="新建灵感"
-        >
-          ＋
-        </button>
         <NavButton
-          active={view === "library"}
-          icon="▦"
+          active={view === "library" || view === "detail" || view === "editor"}
+          icon={LibraryBig}
           label="资料库"
           onClick={() => navigate("library")}
         />
+        <NavButton
+          active={view === "settings"}
+          icon={SettingsIcon}
+          label="设置"
+          onClick={() => navigate("settings")}
+        />
       </nav>
+      <button
+        className="mobile-compose"
+        onClick={() => setComposeOpen(true)}
+        aria-label="新建记录"
+      >
+        <Pencil size={21} />
+      </button>
+      <ComposeSheet
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        onChoose={(type) => {
+          setComposeOpen(false);
+          navigate("editor", { type });
+        }}
+      />
+      <PwaEdgeBack
+        enabled={view === "detail" || view === "editor" || view === "game"}
+        onBack={navigateBack}
+      />
       {toast && (
         <div className="toast" role="status">
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+function PwaEdgeBack({
+  enabled,
+  onBack,
+}: {
+  enabled: boolean;
+  onBack: () => void;
+}) {
+  const x = useMotionValue(0);
+  const [standalone, setStandalone] = useState(false);
+  const dragRef = useRef<{ start: number; last: number; time: number; velocity: number } | null>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia("(display-mode: standalone)");
+    const update = () =>
+      setStandalone(
+        media.matches ||
+          Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
+      );
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  if (!enabled || !standalone) return null;
+
+  return (
+    <div
+      className="pwa-edge-back"
+      aria-hidden="true"
+      onPointerDown={(event) => {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        dragRef.current = {
+          start: event.clientX,
+          last: event.clientX,
+          time: performance.now(),
+          velocity: 0,
+        };
+      }}
+      onPointerMove={(event) => {
+        const drag = dragRef.current;
+        if (!drag) return;
+        const now = performance.now();
+        const deltaTime = Math.max(1, now - drag.time);
+        drag.velocity = ((event.clientX - drag.last) / deltaTime) * 1000;
+        drag.last = event.clientX;
+        drag.time = now;
+        const distance = Math.max(0, event.clientX - drag.start);
+        x.set((distance * 180 * 0.55) / (180 + 0.55 * distance));
+      }}
+      onPointerUp={() => {
+        const drag = dragRef.current;
+        dragRef.current = null;
+        if (!drag) return;
+        const projected = x.get() + drag.velocity * 0.12;
+        if (projected > 62) {
+          animate(x, 90, {
+            type: "spring",
+            bounce: 0,
+            duration: 0.22,
+            onComplete: onBack,
+          });
+        } else {
+          animate(x, 0, { type: "spring", bounce: 0, duration: 0.32 });
+        }
+      }}
+      onPointerCancel={() => {
+        dragRef.current = null;
+        animate(x, 0, { type: "spring", bounce: 0, duration: 0.3 });
+      }}
+    >
+      <motion.span style={{ x }}>
+        <ChevronRight size={18} />
+      </motion.span>
     </div>
   );
 }
@@ -435,15 +638,89 @@ function NavButton({
   onClick,
 }: {
   active: boolean;
-  icon: string;
+  icon: LucideIcon;
   label: string;
   onClick: () => void;
 }) {
+  const Icon = icon;
   return (
     <button className={active ? "active" : ""} onClick={onClick}>
-      <span aria-hidden="true">{icon}</span>
+      <span aria-hidden="true"><Icon size={19} strokeWidth={active ? 2.35 : 1.9} /></span>
       {label}
     </button>
+  );
+}
+
+function ComposeSheet({
+  open,
+  onOpenChange,
+  onChoose,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onChoose: (type: EntryType) => void;
+}) {
+  const reduceMotion = useReducedMotion();
+  const mobile = useMediaQuery("(max-width: 767px)");
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal forceMount>
+        <AnimatePresence>
+          {open && (
+            <>
+              <Dialog.Overlay asChild forceMount>
+                <motion.div
+                  className="dialog-overlay compose-overlay"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: reduceMotion ? 0.12 : 0.2 }}
+                />
+              </Dialog.Overlay>
+              <Dialog.Content asChild forceMount>
+                <motion.div
+                  className="compose-sheet"
+                  initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 36, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 48, scale: 0.98 }}
+                  transition={{ type: "spring", bounce: 0, duration: 0.36 }}
+                  drag={mobile && !reduceMotion ? "y" : false}
+                  dragConstraints={{ top: 0, bottom: 0 }}
+                  dragElastic={{ top: 0.04, bottom: 0.6 }}
+                  onDragEnd={(_, info) => {
+                    const projected = info.offset.y + info.velocity.y * 0.16;
+                    if (projected > 120) onOpenChange(false);
+                  }}
+                >
+                  <div className="sheet-grabber" aria-hidden="true" />
+                  <Dialog.Title>新建记录</Dialog.Title>
+                  <Dialog.Description>选择最适合此刻想法的记录方式。</Dialog.Description>
+                  <div className="compose-options">
+                    <button onClick={() => onChoose("idea")}>
+                      <span className="compose-option-icon idea"><Lightbulb size={22} /></span>
+                      <span>
+                        <strong>记录灵感</strong>
+                        <small>快速保存机制、画面、声音或叙事想法</small>
+                      </span>
+                      <ChevronRight size={18} />
+                    </button>
+                    <button onClick={() => onChoose("review")}>
+                      <span className="compose-option-icon review"><Gamepad2 size={22} /></span>
+                      <span>
+                        <strong>游戏复盘</strong>
+                        <small>整理亮点、问题以及值得借鉴的设计</small>
+                      </span>
+                      <ChevronRight size={18} />
+                    </button>
+                  </div>
+                  <Dialog.Close className="sheet-cancel">取消</Dialog.Close>
+                </motion.div>
+              </Dialog.Content>
+            </>
+          )}
+        </AnimatePresence>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -456,7 +733,7 @@ function Dashboard({
   loading: boolean;
   navigate: (
     view: View,
-    options?: { entryId?: string; type?: EntryType },
+    options?: NavigateOptions,
   ) => void;
 }) {
   const recent = entries.slice(0, 4);
@@ -465,7 +742,7 @@ function Dashboard({
     <div className="page dashboard-page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">星期二 · 保持好奇</p>
+          <p className="eyebrow">今天</p>
           <h1>今天捕捉到了什么？</h1>
           <p>把稍纵即逝的感受，变成以后用得上的设计判断。</p>
         </div>
@@ -479,23 +756,23 @@ function Dashboard({
           className="capture-card idea-card"
           onClick={() => navigate("editor", { type: "idea" })}
         >
-          <span className="capture-icon">✦</span>
+          <span className="capture-icon"><Lightbulb size={21} /></span>
           <span>
             <strong>记录一个灵感</strong>
             <small>机制、画面、声音，先记下来再整理</small>
           </span>
-          <span className="arrow">↗</span>
+          <span className="arrow"><ChevronRight size={19} /></span>
         </button>
         <button
           className="capture-card review-card"
           onClick={() => navigate("editor", { type: "review" })}
         >
-          <span className="capture-icon">◉</span>
+          <span className="capture-icon"><Gamepad2 size={21} /></span>
           <span>
             <strong>开始游戏复盘</strong>
             <small>把体验拆成亮点、问题与可借鉴设计</small>
           </span>
-          <span className="arrow">↗</span>
+          <span className="arrow"><ChevronRight size={19} /></span>
         </button>
       </section>
 
@@ -517,11 +794,11 @@ function Dashboard({
       <section className="section-block">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">RECENT NOTES</p>
+            <p className="eyebrow">最近</p>
             <h2>最近记录</h2>
           </div>
           <button onClick={() => navigate("library")}>
-            查看全部 <span>→</span>
+            查看全部 <ChevronRight size={14} />
           </button>
         </div>
         <div className="entry-list">
@@ -533,7 +810,7 @@ function Dashboard({
                 key={entry.id}
                 entry={entry}
                 onOpen={() =>
-                  navigate("editor", { entryId: entry.id })
+                  navigate("detail", { entryId: entry.id })
                 }
               />
             ))
@@ -551,15 +828,21 @@ function EntryRow({
   entry,
   onOpen,
   onFavorite,
+  selected = false,
 }: {
   entry: Entry;
   onOpen: () => void;
   onFavorite?: () => void;
+  selected?: boolean;
 }) {
   return (
-    <article className="entry-row" onClick={onOpen}>
+    <article
+      className={`entry-row ${selected ? "selected" : ""}`}
+      onClick={onOpen}
+      aria-current={selected ? "page" : undefined}
+    >
       <div className={`entry-symbol ${entry.type}`}>
-        {entry.type === "idea" ? "✦" : "◉"}
+        {entry.type === "idea" ? <Lightbulb size={19} /> : <Gamepad2 size={19} />}
       </div>
       <div className="entry-main">
         <div className="entry-title-line">
@@ -591,7 +874,7 @@ function EntryRow({
           }}
           aria-label={entry.favorite ? "取消收藏" : "收藏"}
         >
-          {entry.favorite ? "★" : "☆"}
+          <Star size={18} fill={entry.favorite ? "currentColor" : "none"} />
         </button>
       )}
     </article>
@@ -602,13 +885,14 @@ function Library({
   entries,
   navigate,
   onFavorite,
+  compact = false,
+  selectedEntryId,
 }: {
   entries: Entry[];
-  navigate: (
-    view: View,
-    options?: { entryId?: string; type?: EntryType },
-  ) => void;
+  navigate: (view: View, options?: NavigateOptions) => void;
   onFavorite: (entry: Entry) => void;
+  compact?: boolean;
+  selectedEntryId?: string;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<
@@ -623,10 +907,10 @@ function Library({
     return matchesFilter && haystack.includes(query.toLowerCase());
   });
   return (
-    <div className="page library-page">
+    <div className={`page library-page ${compact ? "compact-library" : ""}`}>
       <header className="page-header compact">
         <div>
-          <p className="eyebrow">YOUR DESIGN MEMORY</p>
+          <p className="eyebrow">浏览</p>
           <h1>资料库</h1>
           <p>所有灵感与复盘，都在这里建立联系。</p>
         </div>
@@ -634,12 +918,12 @@ function Library({
           className="primary-button"
           onClick={() => navigate("editor", { type: "idea" })}
         >
-          ＋ 新建记录
+          <Plus size={16} /> 新建记录
         </button>
       </header>
       <div className="library-toolbar">
         <label className="search-box">
-          <span>⌕</span>
+          <span><Search size={17} /></span>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -675,8 +959,9 @@ function Library({
             <EntryRow
               key={entry.id}
               entry={entry}
+              selected={entry.id === selectedEntryId}
               onOpen={() =>
-                navigate("editor", { entryId: entry.id })
+                navigate("detail", { entryId: entry.id })
               }
               onFavorite={() => onFavorite(entry)}
             />
@@ -697,6 +982,8 @@ function Editor({
   defaultType,
   games,
   online,
+  initialEditing,
+  onModeChange,
   onBack,
   onSaved,
   onDeleted,
@@ -707,6 +994,8 @@ function Editor({
   defaultType: EntryType;
   games: Game[];
   online: boolean;
+  initialEditing: boolean;
+  onModeChange: (editing: boolean) => void;
   onBack: () => void;
   onSaved: (entry: Entry) => void;
   onDeleted: (id: string) => void;
@@ -738,7 +1027,7 @@ function Editor({
       : emptyInput(defaultType),
   );
   const [entryId, setEntryId] = useState(entry?.id);
-  const [editing, setEditing] = useState(!entry);
+  const [editing, setEditing] = useState(initialEditing || !entry);
   const [images, setImages] = useState<EntryImage[]>(entry?.images ?? []);
   const [tagText, setTagText] = useState(entry?.tags.join("，") ?? "");
   const [syncState, setSyncState] = useState<SyncState>("saved");
@@ -760,6 +1049,8 @@ function Editor({
       : `new:${crypto.randomUUID()}`,
   );
   const fileRef = useRef<HTMLInputElement>(null);
+  const mobile = useMediaQuery("(max-width: 767px)");
+  const reduceMotion = useReducedMotion();
 
   const selectedGame = games.find((game) => game.id === draft.gameId);
   const payload = useMemo<EntryInput>(
@@ -1003,17 +1294,24 @@ function Editor({
       <div className="page editor-page detail-page">
         <header className="editor-header">
           <button className="back-button" onClick={onBack} aria-label="返回资料库">
-            ←
+            <ChevronLeft size={22} />
           </button>
           <div className="detail-type-pill">
-            {draft.type === "idea" ? "✦ 灵感" : "◉ 游戏复盘"}
+            {draft.type === "idea" ? <><Lightbulb size={14} /> 灵感</> : <><Gamepad2 size={14} /> 游戏复盘</>}
             {entryId.startsWith("sample-") ? " · 示例" : ""}
           </div>
           <div className="editor-actions">
             <button className="secondary-button" onClick={() => void copyShareLink()}>
-              分享
+              <Share2 size={15} /> 分享
             </button>
-            <button className="primary-button" onClick={() => setEditing(true)}>
+            <button
+              className="primary-button"
+              onClick={() => {
+                setEditing(true);
+                onModeChange(true);
+              }}
+            >
+              <Pencil size={15} />
               {entryId.startsWith("sample-") ? "使用此示例" : "编辑"}
             </button>
           </div>
@@ -1021,7 +1319,7 @@ function Editor({
 
         <article className="editor-canvas detail-canvas">
           <p className="entry-kicker">
-            {draft.type === "idea" ? "DESIGN IDEA" : "GAME REVIEW"}
+            {draft.type === "idea" ? "设计灵感" : "游戏复盘"}
           </p>
           <h1 className="detail-title">{draft.title || "未命名灵感"}</h1>
           {draft.body && <p className="detail-lead">{draft.body}</p>}
@@ -1093,7 +1391,7 @@ function Editor({
 
           <footer className="detail-footer">
             <span className={`detail-status ${draft.status}`}>
-              {draft.status === "complete" ? "已完成" : "草稿"}
+              {draft.status === "complete" ? <><CircleCheck size={14} /> 已完成</> : <><FileText size={14} /> 草稿</>}
             </span>
             <small>最后更新于 {entry ? formatDate(entry.updatedAt) : "刚刚"}</small>
           </footer>
@@ -1107,23 +1405,26 @@ function Editor({
       <header className="editor-header">
         <button
           className="back-button"
-          onClick={onBack}
+          onClick={async () => {
+            await save(true);
+            onBack();
+          }}
           aria-label="返回"
         >
-          ←
+          <ChevronLeft size={22} />
         </button>
         <div className="type-switch">
           <button
             className={draft.type === "idea" ? "selected" : ""}
             onClick={() => changeType("idea")}
           >
-            ✦ 灵感
+            <Lightbulb size={14} /> 灵感
           </button>
           <button
             className={draft.type === "review" ? "selected" : ""}
             onClick={() => changeType("review")}
           >
-            ◉ 游戏复盘
+            <Gamepad2 size={14} /> 游戏复盘
           </button>
         </div>
         <div className="editor-actions">
@@ -1148,26 +1449,29 @@ function Editor({
             }
             aria-label="收藏"
           >
-            {draft.favorite ? "★" : "☆"}
+            <Star size={18} fill={draft.favorite ? "currentColor" : "none"} />
           </button>
           <button className="secondary-button" onClick={createShare}>
-            分享
+            <Share2 size={15} /> 分享
           </button>
           <button
             className="primary-button"
             onClick={async () => {
               const saved = await save();
-              if (saved) setEditing(false);
+              if (saved) {
+                setEditing(false);
+                onModeChange(false);
+              }
             }}
           >
-            完成
+            <Check size={16} /> 完成
           </button>
         </div>
       </header>
 
       <div className="editor-canvas">
         <p className="entry-kicker">
-          {draft.type === "idea" ? "DESIGN IDEA" : "GAME REVIEW"}
+          {draft.type === "idea" ? "设计灵感" : "游戏复盘"}
         </p>
         <input
           className="title-input"
@@ -1320,14 +1624,16 @@ function Editor({
                     <button
                       onClick={() => moveImage(index, -1)}
                       disabled={index === 0}
+                      aria-label="向前移动图片"
                     >
-                      ←
+                      <ChevronUp size={15} />
                     </button>
                     <button
                       onClick={() => moveImage(index, 1)}
                       disabled={index === images.length - 1}
+                      aria-label="向后移动图片"
                     >
-                      →
+                      <ChevronDown size={15} />
                     </button>
                     <button
                       className="danger-text"
@@ -1340,7 +1646,7 @@ function Editor({
                         );
                       }}
                     >
-                      删除
+                      <Trash2 size={14} /> 删除
                     </button>
                   </div>
                 </figcaption>
@@ -1351,7 +1657,7 @@ function Editor({
                 className="image-uploader"
                 onClick={() => fileRef.current?.click()}
               >
-                <span>＋</span>
+                <span><ImagePlus size={19} /></span>
                 <strong>添加参考图片</strong>
                 <small>支持粘贴或上传，单张不超过 15 MB</small>
               </button>
@@ -1417,8 +1723,29 @@ function Editor({
       />
       <Dialog.Root open={shareDialog} onOpenChange={setShareDialog}>
         <Dialog.Portal>
-          <Dialog.Overlay className="dialog-overlay" />
-          <Dialog.Content className="dialog-content">
+          <Dialog.Overlay asChild>
+            <motion.div
+              className="dialog-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            />
+          </Dialog.Overlay>
+          <Dialog.Content asChild>
+            <motion.div
+              className="dialog-content"
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: mobile ? 34 : 10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: "spring", bounce: 0, duration: 0.34 }}
+              drag={mobile && !reduceMotion ? "y" : false}
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0.03, bottom: 0.55 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.y + info.velocity.y * 0.16 > 120) {
+                  setShareDialog(false);
+                }
+              }}
+            >
+            <div className="sheet-grabber" aria-hidden="true" />
             <Dialog.Title>只读分享链接</Dialog.Title>
             <Dialog.Description>
               拥有链接的人只能阅读这篇内容。重新生成链接会使旧链接失效。
@@ -1454,6 +1781,7 @@ function Editor({
                 撤销分享
               </button>
             </div>
+            </motion.div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
@@ -1480,6 +1808,8 @@ function GamePicker({
   const [results, setResults] = useState<Game[]>(games);
   const [searching, setSearching] = useState(false);
   const [creating, setCreating] = useState(false);
+  const mobile = useMediaQuery("(max-width: 767px)");
+  const reduceMotion = useReducedMotion();
   const search = async () => {
     if (!query.trim()) return;
     setSearching(true);
@@ -1532,8 +1862,29 @@ function GamePicker({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="dialog-content game-dialog">
+        <Dialog.Overlay asChild>
+          <motion.div
+            className="dialog-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          />
+        </Dialog.Overlay>
+        <Dialog.Content asChild>
+          <motion.div
+            className="dialog-content game-dialog"
+            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: mobile ? 42 : 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ type: "spring", bounce: 0, duration: 0.34 }}
+            drag={mobile && !reduceMotion ? "y" : false}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0.03, bottom: 0.55 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y + info.velocity.y * 0.16 > 140) {
+                onOpenChange(false);
+              }
+            }}
+          >
+          <div className="sheet-grabber" aria-hidden="true" />
           <Dialog.Title>关联一款游戏</Dialog.Title>
           <Dialog.Description>
             搜索 IGDB，或创建自己的游戏档案。
@@ -1586,12 +1937,13 @@ function GamePicker({
               onClick={() => void createManual()}
               disabled={creating}
             >
-              {creating ? "正在创建…" : `＋ 创建“${query.trim()}”的手动档案`}
+              {creating ? "正在创建…" : `创建“${query.trim()}”的手动档案`}
             </button>
           )}
           <Dialog.Close className="dialog-close" aria-label="关闭">
-            ×
+            <X size={17} />
           </Dialog.Close>
+          </motion.div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -1607,7 +1959,7 @@ function GameDetail({
   entries: Entry[];
   navigate: (
     view: View,
-    options?: { entryId?: string; type?: EntryType },
+    options?: NavigateOptions,
   ) => void;
 }) {
   return (
@@ -1620,7 +1972,7 @@ function GameDetail({
           <div className="large-game-placeholder">{game.name.slice(0, 1)}</div>
         )}
         <div>
-          <p className="eyebrow">GAME ARCHIVE</p>
+          <p className="eyebrow">游戏档案</p>
           <h1>{game.name}</h1>
           <p>{[...game.genres, ...game.platforms].join(" · ")}</p>
           {game.developer && <span>{game.developer}</span>}
@@ -1630,7 +1982,7 @@ function GameDetail({
         <div className="section-heading">
           <h2>相关记录</h2>
           <button onClick={() => navigate("editor", { type: "idea" })}>
-            ＋ 添加灵感
+            <Plus size={15} /> 添加灵感
           </button>
         </div>
         <div className="entry-list">
@@ -1638,7 +1990,7 @@ function GameDetail({
             <EntryRow
               key={entry.id}
               entry={entry}
-              onOpen={() => navigate("editor", { entryId: entry.id })}
+              onOpen={() => navigate("detail", { entryId: entry.id })}
             />
           ))}
           {!entries.length && (
@@ -1717,7 +2069,7 @@ function Settings({
     <div className="page settings-page">
       <header className="page-header compact">
         <div>
-          <p className="eyebrow">PREFERENCES & DATA</p>
+          <p className="eyebrow">偏好与数据</p>
           <h1>设置</h1>
           <p>让资料库更适合你的工作方式。</p>
         </div>
@@ -1725,9 +2077,12 @@ function Settings({
       <section className="settings-group">
         <h2>外观</h2>
         <div className="settings-card">
-          <div>
-            <strong>显示模式</strong>
-            <small>跟随系统，或固定使用亮色、深色</small>
+          <div className="settings-leading">
+            <span className="settings-icon"><SettingsIcon size={18} /></span>
+            <span>
+              <strong>显示模式</strong>
+              <small>跟随系统，或固定使用亮色、深色</small>
+            </span>
           </div>
           <div className="segmented">
             {(["system", "light", "dark"] as const).map((value) => (
@@ -1749,27 +2104,33 @@ function Settings({
       <section className="settings-group">
         <h2>数据与备份</h2>
         <div className="settings-card">
-          <div>
-            <strong>导出完整资料库</strong>
-            <small>
-              包含 JSON、Markdown 与内容关系；当前共 {entries.length} 条记录
-            </small>
+          <div className="settings-leading">
+            <span className="settings-icon"><Download size={18} /></span>
+            <span>
+              <strong>导出完整资料库</strong>
+              <small>
+                包含 JSON、Markdown 与内容关系；当前共 {entries.length} 条记录
+              </small>
+            </span>
           </div>
           <button className="secondary-button" onClick={exportLibrary}>
-            导出 ZIP
+            <Download size={15} /> 导出 ZIP
           </button>
         </div>
       </section>
       <section className="settings-group">
         <h2>账号</h2>
         <div className="settings-card">
-          <div>
-            <strong>个人资料库</strong>
-            <small>通过当前安全账户访问，所有写入均按用户隔离</small>
+          <div className="settings-leading">
+            <span className="settings-icon"><Cloud size={18} /></span>
+            <span>
+              <strong>个人资料库</strong>
+              <small>通过当前安全账户访问，所有写入均按用户隔离</small>
+            </span>
           </div>
           <form action="/auth/signout" method="post">
             <button className="secondary-button" type="submit">
-              退出登录
+              <LogOut size={15} /> 退出登录
             </button>
           </form>
         </div>

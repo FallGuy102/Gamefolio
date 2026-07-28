@@ -34,13 +34,13 @@ export async function generateMetadata(): Promise<Metadata> {
       title: "Gamefolio · 游戏设计灵感库",
       description: "捕捉游戏灵感，沉淀设计判断。",
       type: "website",
-      images: [{ url: `${origin}/og.png`, width: 1536, height: 1024 }],
+      images: [{ url: `${origin}/og-apple.png`, width: 1536, height: 1024 }],
     },
     twitter: {
       card: "summary_large_image",
       title: "Gamefolio · 游戏设计灵感库",
       description: "捕捉游戏灵感，沉淀设计判断。",
-      images: [`${origin}/og.png`],
+      images: [`${origin}/og-apple.png`],
     },
   };
 }

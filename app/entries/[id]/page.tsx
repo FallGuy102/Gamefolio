@@ -8,5 +8,5 @@ export default async function EntryPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <StudioApp initialView="editor" initialEntryId={id} />;
+  return <StudioApp initialView="detail" initialEntryId={id} />;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FileQuestion, Sparkles } from "lucide-react";
 import type { Entry } from "./lib/types";
 
 const labels: Record<string, string> = {
@@ -30,7 +31,7 @@ export function SharedEntry({ token }: { token: string }) {
     return (
       <main className="share-shell">
         <section className="share-error">
-          <span>◇</span>
+          <span><FileQuestion size={38} /></span>
           <h1>这份分享已经不可用</h1>
           <p>{error}</p>
         </section>
@@ -43,9 +44,9 @@ export function SharedEntry({ token }: { token: string }) {
 
   return (
     <main className="share-shell">
-      <header className="share-brand"><span className="brand-mark">G</span><strong>Gamefolio</strong><small>只读分享</small></header>
+      <header className="share-brand"><span className="brand-mark"><Sparkles size={15} /></span><strong>Gamefolio</strong><small>只读分享</small></header>
       <article className="shared-article">
-        <p className="entry-kicker">{entry.type === "idea" ? "DESIGN IDEA" : "GAME REVIEW"}</p>
+        <p className="entry-kicker">{entry.type === "idea" ? "设计灵感" : "游戏复盘"}</p>
         <h1>{entry.title}</h1>
         <div className="share-meta">
           {entry.game && <span>{entry.game.name}</span>}

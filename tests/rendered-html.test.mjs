@@ -34,12 +34,19 @@ test("ships the adaptive Apple visual system and accessible fallbacks", async ()
 });
 
 test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => {
-  const [manifest, serviceWorker, source, migration, proxy] = await Promise.all([
+  const [manifest, serviceWorker, source, migration, serviceGrant, proxy] = await Promise.all([
     readFile(new URL("../app/manifest.ts", import.meta.url), "utf8"),
     readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
     readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
     readFile(
       new URL("../supabase/migrations/20260728000000_initial_schema.sql", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL(
+        "../supabase/migrations/20260729010000_grant_service_role_reads.sql",
+        import.meta.url,
+      ),
       "utf8",
     ),
     readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
@@ -50,6 +57,9 @@ test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => 
   assert.match(source, /saveQueueRef/);
   assert.match(migration, /enable row level security/i);
   assert.match(migration, /entry-images/);
+  assert.match(migration, /to service_role/i);
+  assert.match(serviceGrant, /public\.share_links/);
+  assert.match(serviceGrant, /public\.entry_images/);
   assert.match(proxy, /updateSession/);
 });
 

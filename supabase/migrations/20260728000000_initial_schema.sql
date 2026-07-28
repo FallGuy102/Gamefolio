@@ -142,6 +142,20 @@ grant select, insert, update, delete on table public.entry_tags to authenticated
 grant select, insert, update, delete on table public.entry_images to authenticated;
 grant select, insert, update, delete on table public.share_links to authenticated;
 
+-- Server-only routes use the service role to render public shares and run
+-- health checks. Bypassing RLS does not replace PostgreSQL table privileges.
+grant usage on schema public to service_role;
+grant select on table
+  public.profiles,
+  public.games,
+  public.entries,
+  public.entry_sections,
+  public.tags,
+  public.entry_tags,
+  public.entry_images,
+  public.share_links
+to service_role;
+
 drop policy if exists "profiles_owner_all" on public.profiles;
 create policy "profiles_owner_all" on public.profiles
   for all to authenticated using ((select auth.uid()) = id)

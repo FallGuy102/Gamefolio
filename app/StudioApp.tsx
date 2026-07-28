@@ -26,12 +26,15 @@ import {
   Lightbulb,
   LogOut,
   Pencil,
+  Palette,
   Plus,
   Search,
   Settings as SettingsIcon,
   Share2,
+  SlidersHorizontal,
   Sparkles,
   Star,
+  Tags,
   Trash2,
   X,
   type LucideIcon,
@@ -62,6 +65,16 @@ const reviewTemplate: ReviewSection[] = [
 const sectionLabels: Record<string, string> = Object.fromEntries(
   reviewTemplate.map((section) => [section.kind, section.label ?? section.kind]),
 );
+
+const designThemes = [
+  "核心玩法",
+  "关卡设计",
+  "叙事设计",
+  "视觉与交互",
+  "音频设计",
+  "数值与经济",
+  "玩家心理",
+];
 
 const sampleEntries: Entry[] = [
   {
@@ -1577,52 +1590,89 @@ function Editor({
         <button
           className="advanced-toggle"
           onClick={() => setAdvanced((value) => !value)}
+          aria-expanded={advanced}
         >
-          {advanced ? "收起分类信息" : "添加游戏、主题和标签"}{" "}
-          <span>{advanced ? "⌃" : "⌄"}</span>
+          <span className="advanced-toggle-copy">
+            <span className="advanced-toggle-icon">
+              <SlidersHorizontal size={16} />
+            </span>
+            <span>
+              <strong>分类信息</strong>
+              <small>关联游戏、设计主题和标签</small>
+            </span>
+          </span>
+          {advanced ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
         </button>
         {advanced && (
-          <section className="metadata-panel">
+          <motion.section
+            className="classification-panel"
+            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", bounce: 0, duration: 0.28 }}
+          >
             <button
-              className="field-button"
+              className="classification-row game-classification"
               onClick={() => setGameDialog(true)}
             >
-              <span>
+              <span className="classification-icon">
+                <Gamepad2 size={17} />
+              </span>
+              <span className="classification-copy">
                 <small>关联游戏</small>
                 <strong>{selectedGame?.name ?? "选择或创建游戏"}</strong>
               </span>
-              <span>›</span>
+              <ChevronRight size={17} />
             </button>
-            <label>
-              <small>设计主题</small>
-              <select
-                value={draft.designTheme ?? ""}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    designTheme: event.target.value,
-                  }))
-                }
+            <div className="theme-classification">
+              <div className="classification-heading">
+                <span className="classification-icon">
+                  <Palette size={17} />
+                </span>
+                <span className="classification-copy">
+                  <small>设计主题</small>
+                  <strong>{draft.designTheme || "未选择"}</strong>
+                </span>
+              </div>
+              <div
+                className="theme-options"
+                role="group"
+                aria-label="选择设计主题"
               >
-                <option value="">未选择</option>
-                <option>核心玩法</option>
-                <option>关卡设计</option>
-                <option>叙事设计</option>
-                <option>视觉与交互</option>
-                <option>音频设计</option>
-                <option>数值与经济</option>
-                <option>玩家心理</option>
-              </select>
+                {designThemes.map((theme) => (
+                  <button
+                    type="button"
+                    className={`theme-option ${
+                      draft.designTheme === theme ? "selected" : ""
+                    }`}
+                    aria-pressed={draft.designTheme === theme}
+                    key={theme}
+                    onClick={() =>
+                      setDraft((current) => ({
+                        ...current,
+                        designTheme:
+                          current.designTheme === theme ? "" : theme,
+                      }))
+                    }
+                  >
+                    {theme}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="classification-row tags-classification">
+              <span className="classification-icon">
+                <Tags size={17} />
+              </span>
+              <span className="classification-copy">
+                <small>标签</small>
+                <input
+                  value={tagText}
+                  onChange={(event) => setTagText(event.target.value)}
+                  placeholder="探索，反馈，节奏"
+                />
+              </span>
             </label>
-            <label className="wide-field">
-              <small>标签</small>
-              <input
-                value={tagText}
-                onChange={(event) => setTagText(event.target.value)}
-                placeholder="用逗号分隔，例如：探索，反馈，节奏"
-              />
-            </label>
-          </section>
+          </motion.section>
         )}
 
         {draft.type === "review" && (

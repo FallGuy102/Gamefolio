@@ -2646,10 +2646,201 @@ button:active {
 }
 
 .advanced-toggle {
-  min-height: 40px;
-  margin: 6px 0 20px;
+  width: 100%;
+  min-height: 54px;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 8px 0 12px;
+  padding: 8px 12px;
+  border-radius: 13px;
+  background: var(--surface-muted);
+  color: var(--text);
+  text-align: left;
+}
+
+.advanced-toggle:hover {
+  background: color-mix(in srgb, var(--surface-muted) 76%, var(--accent-soft));
+}
+
+.advanced-toggle > svg {
+  flex: 0 0 auto;
+  color: var(--tertiary);
+}
+
+.advanced-toggle-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.advanced-toggle-copy > span:last-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.advanced-toggle-copy strong {
+  font-size: 0.82rem;
+  font-weight: 620;
+}
+
+.advanced-toggle-copy small {
+  overflow: hidden;
+  color: var(--tertiary);
+  font-size: 0.7rem;
+  font-weight: 450;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.advanced-toggle-icon,
+.classification-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  background: var(--accent-soft);
   color: var(--accent);
-  font-size: 0.75rem;
+}
+
+.advanced-toggle-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+
+.classification-panel {
+  overflow: hidden;
+  margin-bottom: 30px;
+  border: 0.5px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-solid);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 color-mix(in srgb, white 7%, transparent);
+}
+
+.classification-row,
+.classification-heading {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+}
+
+.classification-row {
+  width: 100%;
+  min-height: 66px;
+  padding: 10px 14px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.classification-row + *,
+.theme-classification + .classification-row {
+  border-top: 0.5px solid var(--line);
+}
+
+.game-classification:hover {
+  background: var(--surface-muted);
+}
+
+.game-classification > svg {
+  color: var(--tertiary);
+}
+
+.classification-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+
+.classification-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.classification-copy small {
+  color: var(--tertiary);
+  font-size: 0.68rem;
+  font-weight: 520;
+  letter-spacing: 0;
+}
+
+.classification-copy strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 590;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-classification {
+  padding: 12px 14px 14px;
+}
+
+.classification-heading {
+  grid-template-columns: 34px minmax(0, 1fr);
+}
+
+.theme-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 11px 0 0 45px;
+}
+
+.theme-option {
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 0.5px solid transparent;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--secondary);
+  font-size: 0.74rem;
+  font-weight: 520;
+}
+
+.theme-option:hover {
+  background: color-mix(in srgb, var(--surface-muted) 72%, var(--accent-soft));
+  color: var(--text);
+}
+
+.theme-option.selected {
+  border-color: color-mix(in srgb, var(--accent) 58%, transparent);
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.tags-classification {
+  cursor: text;
+}
+
+.tags-classification .classification-copy {
+  gap: 1px;
+}
+
+.tags-classification input {
+  width: 100%;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.84rem;
+}
+
+.tags-classification input::placeholder {
+  color: var(--tertiary);
 }
 
 .metadata-panel {
@@ -3411,6 +3602,10 @@ body:has(.share-shell) {
   .metadata-panel > * + * {
     border-top: 0.5px solid var(--line);
     border-left: 0;
+  }
+
+  .theme-options {
+    margin-left: 0;
   }
 
   .wide-field {

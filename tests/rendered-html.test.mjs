@@ -116,3 +116,17 @@ test("keeps entry versions synchronized and stops repeated conflict saves", asyn
   assert.match(source, /conflictRef\.current = true/);
   assert.match(source, /if \(conflictRef\.current\)/);
 });
+
+test("uses dark-mode-safe classification controls instead of a native theme select", async () => {
+  const [source, styles] = await Promise.all([
+    readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(source, /className="classification-panel"/);
+  assert.match(source, /designThemes\.map/);
+  assert.match(source, /aria-pressed=\{draft\.designTheme === theme\}/);
+  assert.doesNotMatch(source, /value=\{draft\.designTheme/);
+  assert.match(styles, /\.classification-panel/);
+  assert.match(styles, /\.theme-option\.selected/);
+});

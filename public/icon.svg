@@ -31,6 +31,4 @@
     <path d="M470 230C491 372 554 435 696 456C554 477 491 540 470 682C449 540 386 477 244 456C386 435 449 372 470 230Z" fill="url(#mainSpark)"/>
     <path d="M684 536C693 599 721 627 784 636C721 645 693 673 684 736C675 673 647 645 584 636C647 627 675 599 684 536Z" fill="white" fill-opacity="0.88"/>
   </g>
-
-  <path d="M102 150C226 50 388 20 536 54" stroke="white" stroke-opacity="0.16" stroke-width="22" stroke-linecap="round"/>
 </svg>

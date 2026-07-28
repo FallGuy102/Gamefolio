@@ -35,7 +35,19 @@ test("ships the adaptive Apple visual system and accessible fallbacks", async ()
   assert.match(packageJson, /"motion"/);
   assert.match(
     await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
-    /AnimatePresence mode="popLayout"/,
+    /custom=\{viewTransition\}/,
+  );
+  assert.match(
+    await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    /viewTransitionVariants/,
+  );
+  assert.match(
+    await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    /x:\s*"100%"/,
+  );
+  assert.match(
+    await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    /transition:\s*"stack"/,
   );
   assert.match(
     await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),

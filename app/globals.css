@@ -2101,6 +2101,8 @@ button:active {
 
 .view-stage {
   min-height: 100vh;
+  background: var(--canvas);
+  will-change: transform, opacity;
 }
 
 .sidebar {
@@ -3513,6 +3515,7 @@ body:has(.share-shell) {
 
   .view-stage {
     min-height: calc(100vh - 72px);
+    box-shadow: -18px 0 36px rgba(0, 0, 0, 0.16);
   }
 
   .page {

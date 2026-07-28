@@ -7,6 +7,7 @@ import {
   motion,
   useMotionValue,
   useReducedMotion,
+  type Variants,
 } from "motion/react";
 import {
   Check,
@@ -46,13 +47,47 @@ import { listOfflineDrafts, removeOfflineDraft, saveOfflineDraft } from "./lib/o
 type View = "home" | "library" | "detail" | "editor" | "game" | "settings";
 type SyncState = "saved" | "saving" | "offline" | "conflict" | "error";
 type LibraryFilter = "all" | EntryType | "favorite";
+type NavigationStyle = "stack" | "tab";
 type NavigateOptions = {
   entryId?: string;
   gameId?: string;
   type?: EntryType;
   filter?: LibraryFilter;
+  transition?: NavigationStyle;
+  direction?: 1 | -1;
   replace?: boolean;
 };
+
+type ViewTransition = {
+  direction: 1 | -1;
+  style: NavigationStyle;
+  mobile: boolean;
+  reduceMotion: boolean;
+};
+
+const isSecondaryPath = (path: string) =>
+  path.startsWith("/entries/") || path.startsWith("/games/");
+
+const viewTransitionVariants = {
+  initial: ({ direction, style, mobile, reduceMotion }: ViewTransition) => {
+    if (reduceMotion || style === "tab") return { opacity: 0, x: 0 };
+    if (!mobile) return { opacity: 0, x: direction * 18 };
+    return direction === 1
+      ? { opacity: 1, x: "100%" }
+      : { opacity: 0.82, x: "-22%" };
+  },
+  animate: {
+    opacity: 1,
+    x: 0,
+  },
+  exit: ({ direction, style, mobile, reduceMotion }: ViewTransition) => {
+    if (reduceMotion || style === "tab") return { opacity: 0, x: 0 };
+    if (!mobile) return { opacity: 0, x: direction * -14 };
+    return direction === 1
+      ? { opacity: 0.82, x: "-22%" }
+      : { opacity: 1, x: "100%" };
+  },
+} satisfies Variants;
 
 const reviewTemplate: ReviewSection[] = [
   { kind: "impression", label: "一句话总体印象", content: "", position: 0 },
@@ -161,13 +196,23 @@ export function StudioApp({
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
   const [composeOpen, setComposeOpen] = useState(false);
-  const [navigationDirection, setNavigationDirection] = useState(1);
+  const [navigationDirection, setNavigationDirection] = useState<1 | -1>(1);
+  const [navigationStyle, setNavigationStyle] =
+    useState<NavigationStyle>("tab");
   const [online, setOnline] = useState(() =>
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
+  const navigationPathRef = useRef(
+    typeof window === "undefined" ? "/" : window.location.pathname,
+  );
   const reduceMotion = useReducedMotion();
-  const usesPushTransition =
-    view === "detail" || view === "editor" || view === "game";
+  const mobileNavigation = useMediaQuery("(max-width: 767px)");
+  const viewTransition: ViewTransition = {
+    direction: navigationDirection,
+    style: navigationStyle,
+    mobile: mobileNavigation,
+    reduceMotion: Boolean(reduceMotion),
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -238,6 +283,12 @@ export function StudioApp({
     const syncViewFromUrl = () => {
       const path = window.location.pathname;
       setNavigationDirection(-1);
+      setNavigationStyle(
+        isSecondaryPath(navigationPathRef.current) || isSecondaryPath(path)
+          ? "stack"
+          : "tab",
+      );
+      navigationPathRef.current = path;
       if (path === "/") {
         setView("home");
         setSelectedEntryId(undefined);
@@ -280,10 +331,6 @@ export function StudioApp({
     next: View,
     options?: NavigateOptions,
   ) => {
-    setNavigationDirection(1);
-    setView(next);
-    setSelectedEntryId(options?.entryId);
-    setSelectedGameId(options?.gameId);
     let path = "/";
     if (next === "library") {
       const filter = options?.filter ?? "all";
@@ -298,6 +345,18 @@ export function StudioApp({
         : `/entries/new?type=${options?.type ?? "idea"}`;
     }
     if (next === "game" && options?.gameId) path = `/games/${options.gameId}`;
+    const direction = options?.direction ?? 1;
+    setNavigationDirection(direction);
+    setNavigationStyle(
+      options?.transition ??
+        (next === "detail" || next === "editor" || next === "game"
+          ? "stack"
+          : "tab"),
+    );
+    setView(next);
+    setSelectedEntryId(options?.entryId);
+    setSelectedGameId(options?.gameId);
+    navigationPathRef.current = path.split("?")[0];
     const depth = Number(window.history.state?.gamefolioDepth ?? 0);
     const state = { gamefolioDepth: options?.replace ? depth : depth + 1 };
     if (options?.replace) {
@@ -315,7 +374,11 @@ export function StudioApp({
       window.history.back();
       return;
     }
-    navigate("library", { replace: true });
+    navigate("library", {
+      replace: true,
+      direction: -1,
+      transition: "stack",
+    });
   };
 
   const selectedEntry = entries.find((entry) => entry.id === selectedEntryId);
@@ -478,29 +541,33 @@ export function StudioApp({
       </aside>
 
       <main className="main-content">
-        <AnimatePresence mode="popLayout" initial={false}>
+        <AnimatePresence
+          mode="popLayout"
+          initial={false}
+          custom={viewTransition}
+        >
           <motion.div
             className="view-stage"
+            custom={viewTransition}
+            variants={viewTransitionVariants}
             key={
               view === "detail" || view === "editor"
                 ? `entry-${editorSessionKey}`
                 : view
             }
-            initial={
-              reduceMotion || !usesPushTransition
-                ? { opacity: 0 }
-                : { opacity: 0, x: navigationDirection * 18 }
-            }
-            animate={{ opacity: 1, x: 0 }}
-            exit={
-              reduceMotion || !usesPushTransition
-                ? { opacity: 0 }
-                : { opacity: 0, x: navigationDirection * -12 }
-            }
+            initial="initial"
+            animate="animate"
+            exit="exit"
             transition={
-              reduceMotion || !usesPushTransition
-                ? { duration: reduceMotion ? 0.08 : 0.14, ease: "easeOut" }
-                : { type: "spring", bounce: 0, duration: 0.36 }
+              reduceMotion
+                ? { duration: 0.1, ease: "easeOut" }
+                : navigationStyle === "stack"
+                  ? {
+                      type: "spring",
+                      bounce: 0,
+                      duration: mobileNavigation ? 0.4 : 0.34,
+                    }
+                  : { duration: 0.16, ease: "easeOut" }
             }
           >
         {view === "home" && (

@@ -168,6 +168,9 @@ export function StudioApp({
   const [games, setGames] = useState<Game[]>([]);
   const [selectedEntryId, setSelectedEntryId] = useState(initialEntryId);
   const [selectedGameId, setSelectedGameId] = useState(initialGameId);
+  const [editorSessionKey, setEditorSessionKey] = useState(
+    initialEntryId ?? "new",
+  );
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
   const [composeOpen, setComposeOpen] = useState(false);
@@ -261,6 +264,7 @@ export function StudioApp({
         setView(path === "/entries/new" ? "editor" : "detail");
         const id = path.split("/")[2];
         setSelectedEntryId(id === "new" ? undefined : id);
+        setEditorSessionKey(id === "new" ? "new" : id);
       } else if (path.startsWith("/games/")) {
         setView("game");
         setSelectedGameId(path.split("/")[2]);
@@ -295,6 +299,7 @@ export function StudioApp({
     if (next === "library") path = "/library";
     if (next === "settings") path = "/settings";
     if (next === "detail" || next === "editor") {
+      setEditorSessionKey(options?.entryId ?? "new");
       path = options?.entryId
         ? `/entries/${options.entryId}`
         : `/entries/new?type=${options?.type ?? "idea"}`;
@@ -322,6 +327,8 @@ export function StudioApp({
 
   const selectedEntry = entries.find((entry) => entry.id === selectedEntryId);
   const selectedGame = games.find((game) => game.id === selectedGameId);
+  const showsCollectionPane =
+    Boolean(selectedEntryId) && editorSessionKey !== "new";
 
   const toggleFavorite = async (entry: Entry) => {
     const favorite = !entry.favorite;
@@ -355,13 +362,7 @@ export function StudioApp({
 
   const renderEditor = () => (
     <Editor
-      key={
-        selectedEntryId ??
-        new URLSearchParams(
-          typeof location !== "undefined" ? location.search : "",
-        ).get("type") ??
-        "new"
-      }
+      key={editorSessionKey}
       entry={selectedEntry}
       defaultType={
         typeof location !== "undefined" &&
@@ -511,10 +512,10 @@ export function StudioApp({
         {(view === "detail" || view === "editor") && (!selectedEntryId || selectedEntry) && (
           <div
             className={`library-workspace ${
-              selectedEntryId ? "has-collection" : ""
+              showsCollectionPane ? "has-collection" : ""
             }`}
           >
-            {selectedEntryId && (
+            {showsCollectionPane && (
               <div className="collection-pane">
                 <Library
                   compact

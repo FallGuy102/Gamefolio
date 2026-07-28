@@ -39,7 +39,11 @@ test("ships the adaptive Apple visual system and accessible fallbacks", async ()
   );
   assert.match(
     await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
-    /selectedEntryId \? "has-collection"/,
+    /key=\{editorSessionKey\}/,
+  );
+  assert.match(
+    await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    /editorSessionKey !== "new"/,
   );
   assert.match(styles, /\.library-workspace\.has-collection/);
 });

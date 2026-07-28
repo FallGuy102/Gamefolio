@@ -472,7 +472,11 @@ export function StudioApp({
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div
             className="view-stage"
-            key={view === "detail" || view === "editor" ? `entry-${selectedEntryId}` : view}
+            key={
+              view === "detail" || view === "editor"
+                ? `entry-${editorSessionKey}`
+                : view
+            }
             initial={
               reduceMotion || !usesPushTransition
                 ? { opacity: 0 }

@@ -98,6 +98,8 @@ test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => 
   assert.match(starterMigration, /让失败成为地图的一部分/);
   assert.match(starterMigration, /《空洞骑士》的探索节奏/);
   assert.match(starterMigration, /perform public\.seed_gamefolio_starter_content/);
+  assert.match(starterMigration, /starter_tag_id uuid/);
+  assert.doesNotMatch(starterMigration, /^\s+tag_id uuid;/m);
   assert.doesNotMatch(source, /sampleEntries|sample-/);
   assert.match(source, /setEntries\(entryData\.entries\)/);
   assert.match(proxy, /updateSession/);

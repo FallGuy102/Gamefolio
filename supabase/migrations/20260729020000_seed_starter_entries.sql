@@ -12,7 +12,7 @@ declare
   seeded_at timestamptz;
   idea_id uuid;
   review_id uuid;
-  tag_id uuid;
+  starter_tag_id uuid;
 begin
   select profile.starter_content_seeded_at
     into seeded_at
@@ -59,17 +59,17 @@ begin
     insert into public.tags (id, user_id, name)
     values (gen_random_uuid(), target_user_id, '失败反馈')
     on conflict (user_id, name) do update set name = excluded.name
-    returning id into tag_id;
+    returning id into starter_tag_id;
     insert into public.entry_tags (entry_id, tag_id, user_id)
-    values (idea_id, tag_id, target_user_id)
+    values (idea_id, starter_tag_id, target_user_id)
     on conflict (entry_id, tag_id) do nothing;
 
     insert into public.tags (id, user_id, name)
     values (gen_random_uuid(), target_user_id, '环境叙事')
     on conflict (user_id, name) do update set name = excluded.name
-    returning id into tag_id;
+    returning id into starter_tag_id;
     insert into public.entry_tags (entry_id, tag_id, user_id)
-    values (idea_id, tag_id, target_user_id)
+    values (idea_id, starter_tag_id, target_user_id)
     on conflict (entry_id, tag_id) do nothing;
   end if;
 
@@ -134,25 +134,25 @@ begin
     insert into public.tags (id, user_id, name)
     values (gen_random_uuid(), target_user_id, '探索')
     on conflict (user_id, name) do update set name = excluded.name
-    returning id into tag_id;
+    returning id into starter_tag_id;
     insert into public.entry_tags (entry_id, tag_id, user_id)
-    values (review_id, tag_id, target_user_id)
+    values (review_id, starter_tag_id, target_user_id)
     on conflict (entry_id, tag_id) do nothing;
 
     insert into public.tags (id, user_id, name)
     values (gen_random_uuid(), target_user_id, '地图')
     on conflict (user_id, name) do update set name = excluded.name
-    returning id into tag_id;
+    returning id into starter_tag_id;
     insert into public.entry_tags (entry_id, tag_id, user_id)
-    values (review_id, tag_id, target_user_id)
+    values (review_id, starter_tag_id, target_user_id)
     on conflict (entry_id, tag_id) do nothing;
 
     insert into public.tags (id, user_id, name)
     values (gen_random_uuid(), target_user_id, '节奏')
     on conflict (user_id, name) do update set name = excluded.name
-    returning id into tag_id;
+    returning id into starter_tag_id;
     insert into public.entry_tags (entry_id, tag_id, user_id)
-    values (review_id, tag_id, target_user_id)
+    values (review_id, starter_tag_id, target_user_id)
     on conflict (entry_id, tag_id) do nothing;
   end if;
 

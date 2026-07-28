@@ -2559,7 +2559,9 @@ button:active {
 
 .library-workspace {
   display: grid;
+  width: 100%;
   min-height: 100vh;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .detail-pane {
@@ -3155,8 +3157,8 @@ body:has(.share-shell) {
 }
 
 @media (min-width: 1100px) {
-  .view-detail .library-workspace,
-  .view-editor .library-workspace {
+  .view-detail .library-workspace.has-collection,
+  .view-editor .library-workspace.has-collection {
     grid-template-columns: 360px minmax(0, 1fr);
   }
 

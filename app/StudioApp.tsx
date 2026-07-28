@@ -509,7 +509,11 @@ export function StudioApp({
           </div>
         )}
         {(view === "detail" || view === "editor") && (!selectedEntryId || selectedEntry) && (
-          <div className="library-workspace">
+          <div
+            className={`library-workspace ${
+              selectedEntryId ? "has-collection" : ""
+            }`}
+          >
             {selectedEntryId && (
               <div className="collection-pane">
                 <Library

@@ -37,6 +37,11 @@ test("ships the adaptive Apple visual system and accessible fallbacks", async ()
     await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
     /AnimatePresence mode="popLayout"/,
   );
+  assert.match(
+    await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    /selectedEntryId \? "has-collection"/,
+  );
+  assert.match(styles, /\.library-workspace\.has-collection/);
 });
 
 test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => {

@@ -79,12 +79,24 @@ test("ships the adaptive Apple visual system and accessible fallbacks", async ()
     /layoutId="mobile-liquid-tab-selection"/,
   );
   assert.match(
+    await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    /className="mobile-bottom-chrome"/,
+  );
+  assert.match(
+    await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    /liquid && active/,
+  );
+  assert.match(
     styles,
     /\.liquid-tab-selection[\s\S]{0,900}will-change:\s*transform/,
   );
   assert.match(
     styles,
-    /\.bottom-nav[\s\S]{0,1200}backdrop-filter:\s*blur\(34px\)\s*saturate\(190%\)/,
+    /\.bottom-nav[\s\S]{0,1200}backdrop-filter:\s*blur\(26px\)\s*saturate\(170%\)/,
+  );
+  assert.match(
+    styles,
+    /\.primary-nav \.nav-label[\s\S]{0,180}white-space:\s*nowrap/,
   );
 });
 

@@ -683,33 +683,40 @@ export function StudioApp({
         </AnimatePresence>
       </main>
 
-      <nav className="bottom-nav" aria-label="移动端导航">
-        <NavButton
-          active={view === "home"}
-          icon={House}
-          label="今日"
-          onClick={() => navigate("home")}
-        />
-        <NavButton
-          active={view === "library" || view === "detail" || view === "editor"}
-          icon={LibraryBig}
-          label="资料库"
-          onClick={() => navigate("library")}
-        />
-        <NavButton
-          active={view === "settings"}
-          icon={SettingsIcon}
-          label="设置"
-          onClick={() => navigate("settings")}
-        />
-      </nav>
-      <button
-        className="mobile-compose"
-        onClick={() => setComposeOpen(true)}
-        aria-label="新建记录"
-      >
-        <Pencil size={21} />
-      </button>
+      <div className="mobile-bottom-chrome">
+        <nav className="bottom-nav" aria-label="移动端导航">
+          <NavButton
+            liquid
+            active={view === "home"}
+            icon={House}
+            label="今日"
+            onClick={() => navigate("home")}
+          />
+          <NavButton
+            liquid
+            active={view === "library" || view === "detail" || view === "editor"}
+            icon={LibraryBig}
+            label="资料库"
+            onClick={() => navigate("library")}
+          />
+          <NavButton
+            liquid
+            active={view === "settings"}
+            icon={SettingsIcon}
+            label="设置"
+            onClick={() => navigate("settings")}
+          />
+        </nav>
+        <motion.button
+          className="mobile-compose"
+          onClick={() => setComposeOpen(true)}
+          aria-label="新建记录"
+          whileTap={reduceMotion ? undefined : { scale: 0.92 }}
+          transition={{ type: "spring", bounce: 0, duration: 0.22 }}
+        >
+          <Pencil size={21} />
+        </motion.button>
+      </div>
       <ComposeSheet
         open={composeOpen}
         onOpenChange={setComposeOpen}
@@ -813,11 +820,13 @@ function NavButton({
   icon,
   label,
   onClick,
+  liquid = false,
 }: {
   active: boolean;
   icon: LucideIcon;
   label: string;
   onClick: () => void;
+  liquid?: boolean;
 }) {
   const Icon = icon;
   const reduceMotion = useReducedMotion();
@@ -826,14 +835,14 @@ function NavButton({
       className={active ? "active" : ""}
       onClick={onClick}
       aria-current={active ? "page" : undefined}
-      whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+      whileTap={reduceMotion ? undefined : { scale: liquid ? 0.94 : 0.98 }}
       transition={
         reduceMotion
           ? { duration: 0 }
           : { type: "spring", bounce: 0, duration: 0.22 }
       }
     >
-      {active && (
+      {liquid && active && (
         <motion.span
           className="liquid-tab-selection"
           layoutId="mobile-liquid-tab-selection"

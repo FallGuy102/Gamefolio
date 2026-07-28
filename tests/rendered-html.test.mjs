@@ -52,3 +52,16 @@ test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => 
   assert.match(migration, /entry-images/);
   assert.match(proxy, /updateSession/);
 });
+
+test("reuses active share links until the user explicitly revokes them", async () => {
+  const [shareRoute, server, source] = await Promise.all([
+    readFile(new URL("../app/api/shares/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/server.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(shareRoute, /if \(active\.data\)/);
+  assert.match(shareRoute, /status:\s*200/);
+  assert.match(shareRoute, /shareToken\(active\.data\.id\)/);
+  assert.match(server, /gamefolio-share:/);
+  assert.match(source, /重新生成链接/);
+});

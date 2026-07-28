@@ -1289,6 +1289,18 @@ function Editor({
     onToast("只读分享链接已复制");
   };
 
+  const regenerateShare = async () => {
+    const targetId = entryIdRef.current;
+    if (!targetId || targetId.startsWith("sample-")) return;
+    await api(`/api/shares?entryId=${targetId}`, { method: "DELETE" });
+    const result = await api<{ path: string }>("/api/shares", {
+      method: "POST",
+      body: JSON.stringify({ entryId: targetId }),
+    });
+    setSharePath(`${location.origin}${result.path}`);
+    onToast("已生成新的分享链接，旧链接已失效");
+  };
+
   if (!editing && entryId) {
     return (
       <div className="page editor-page detail-page">
@@ -1748,7 +1760,7 @@ function Editor({
             <div className="sheet-grabber" aria-hidden="true" />
             <Dialog.Title>只读分享链接</Dialog.Title>
             <Dialog.Description>
-              拥有链接的人只能阅读这篇内容。重新生成链接会使旧链接失效。
+              拥有链接的人只能阅读这篇内容。再次打开分享会保持当前链接不变。
             </Dialog.Description>
             <div className="share-link">
               <input readOnly value={sharePath} />
@@ -1765,6 +1777,12 @@ function Editor({
               <Dialog.Close asChild>
                 <button className="secondary-button">关闭</button>
               </Dialog.Close>
+              <button
+                className="secondary-button"
+                onClick={() => void regenerateShare()}
+              >
+                重新生成链接
+              </button>
               <button
                 className="danger-text"
                 onClick={async () => {

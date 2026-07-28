@@ -1,11 +1,6 @@
-import { requireUser, sha256 } from "@/app/lib/server";
+import { requireUser, sha256, shareToken } from "@/app/lib/server";
 
 export const dynamic = "force-dynamic";
-
-function randomToken() {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return Buffer.from(bytes).toString("base64url");
-}
 
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
@@ -14,14 +9,40 @@ export async function POST(request: Request) {
   if (!input.entryId) return Response.json({ error: "缺少条目" }, { status: 400 });
   const entry = await supabase.from("entries").select("id").eq("id", input.entryId).maybeSingle();
   if (!entry.data) return Response.json({ error: "条目不存在" }, { status: 404 });
-  await supabase
+
+  const active = await supabase
     .from("share_links")
-    .update({ revoked_at: new Date().toISOString() })
+    .select("id, token_hash")
     .eq("entry_id", input.entryId)
-    .is("revoked_at", null);
-  const token = randomToken();
+    .is("revoked_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (active.error) {
+    console.error(active.error);
+    return Response.json({ error: "读取分享链接失败" }, { status: 500 });
+  }
+  if (active.data) {
+    const existingToken = await shareToken(active.data.id);
+    if ((await sha256(existingToken)) === active.data.token_hash) {
+      return Response.json(
+        { token: existingToken, path: `/s/${existingToken}` },
+        { status: 200 },
+      );
+    }
+
+    // Legacy links used one-way random tokens and cannot be reconstructed.
+    // Convert them once; subsequent requests reuse the deterministic token.
+    await supabase
+      .from("share_links")
+      .update({ revoked_at: new Date().toISOString() })
+      .eq("id", active.data.id);
+  }
+
+  const id = crypto.randomUUID();
+  const token = await shareToken(id);
   const result = await supabase.from("share_links").insert({
-    id: crypto.randomUUID(),
+    id,
     entry_id: input.entryId,
     user_id: user.id,
     token_hash: await sha256(token),

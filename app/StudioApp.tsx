@@ -200,6 +200,7 @@ export function StudioApp({
     if (!navigator.onLine) return;
     const drafts = await listOfflineDrafts().catch(() => []);
     for (const draft of drafts) {
+      if (draft.key.startsWith("conflict:")) continue;
       try {
         await api(draft.entryId ? `/api/entries/${draft.entryId}` : "/api/entries", {
           method: draft.entryId ? "PATCH" : "POST",
@@ -208,22 +209,25 @@ export function StudioApp({
         await removeOfflineDraft(draft.key);
       } catch (error) {
         if ((error as Error & { status?: number }).status === 409) {
+          await saveOfflineDraft({
+            ...draft,
+            key: `conflict:${draft.entryId ?? "new"}:${Date.now()}`,
+          });
+          await removeOfflineDraft(draft.key);
           setToast("发现跨设备修改，离线版本已保留，请打开条目处理");
         }
         break;
       }
     }
-    if (drafts.length) await loadData();
-  }, [loadData]);
+  }, []);
 
   useEffect(() => {
     const bootstrap = window.setTimeout(() => {
-      void loadData();
-      void syncOfflineDrafts();
+      void syncOfflineDrafts().finally(loadData);
     }, 0);
     const onOnline = () => {
       setOnline(true);
-      syncOfflineDrafts();
+      void syncOfflineDrafts().finally(loadData);
     };
     const onOffline = () => setOnline(false);
     window.addEventListener("online", onOnline);
@@ -318,16 +322,32 @@ export function StudioApp({
   const selectedGame = games.find((game) => game.id === selectedGameId);
 
   const toggleFavorite = async (entry: Entry) => {
+    const favorite = !entry.favorite;
     setEntries((current) =>
       current.map((item) =>
-        item.id === entry.id ? { ...item, favorite: !item.favorite } : item,
+        item.id === entry.id ? { ...item, favorite } : item,
       ),
     );
     if (!entry.id.startsWith("sample-")) {
-      await api(`/api/entries/${entry.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ ...entry, favorite: !entry.favorite }),
-      }).catch(() => setToast("收藏状态暂未同步"));
+      try {
+        const result = await api<{ entry: Entry }>(`/api/entries/${entry.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ ...entry, favorite }),
+        });
+        setEntries((current) =>
+          current.map((item) =>
+            item.id === result.entry.id ? result.entry : item,
+          ),
+        );
+      } catch {
+        setEntries((current) =>
+          current.map((item) =>
+            item.id === entry.id ? entry : item,
+          ),
+        );
+        await loadData();
+        setToast("收藏状态暂未同步");
+      }
     }
   };
 
@@ -963,7 +983,11 @@ function Library({
               onOpen={() =>
                 navigate("detail", { entryId: entry.id })
               }
-              onFavorite={() => onFavorite(entry)}
+              onFavorite={
+                compact && entry.id === selectedEntryId
+                  ? undefined
+                  : () => onFavorite(entry)
+              }
             />
           ))
         ) : (
@@ -1041,6 +1065,7 @@ function Editor({
   const entryIdRef = useRef(entry?.id);
   const versionRef = useRef(entry?.version);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const conflictRef = useRef(false);
   const onSavedRef = useRef(onSaved);
   const onToastRef = useRef(onToast);
   const offlineKeyRef = useRef(
@@ -1073,6 +1098,12 @@ function Editor({
 
   const save = useCallback(
     (quiet = false): Promise<Entry | undefined> => {
+      if (conflictRef.current) {
+        if (!quiet) {
+          onToastRef.current("这份本地修改存在版本冲突，请返回后重新打开条目");
+        }
+        return Promise.resolve(undefined);
+      }
       const snapshot = payloadRef.current;
       if (!snapshot.title.trim() && !snapshot.body.trim()) {
         return Promise.resolve(undefined);
@@ -1120,6 +1151,7 @@ function Editor({
             ...current,
             version: result.entry.version,
           }));
+          conflictRef.current = false;
           setSyncState("saved");
           onSavedRef.current(result.entry);
           if (!quiet) onToastRef.current("已保存");
@@ -1127,6 +1159,7 @@ function Editor({
         } catch (error) {
           const typed = error as Error & { status?: number };
           if (typed.status === 409) {
+            conflictRef.current = true;
             setSyncState("conflict");
             await saveOfflineDraft({
               key: `conflict:${persistedEntryId ?? "new"}:${Date.now()}`,

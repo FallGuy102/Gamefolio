@@ -65,3 +65,14 @@ test("reuses active share links until the user explicitly revokes them", async (
   assert.match(server, /gamefolio-share:/);
   assert.match(source, /重新生成链接/);
 });
+
+test("keeps entry versions synchronized and stops repeated conflict saves", async () => {
+  const source = await readFile(
+    new URL("../app/StudioApp.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /item\.id === result\.entry\.id \? result\.entry : item/);
+  assert.match(source, /draft\.key\.startsWith\("conflict:"\)/);
+  assert.match(source, /conflictRef\.current = true/);
+  assert.match(source, /if \(conflictRef\.current\)/);
+});

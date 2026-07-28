@@ -145,8 +145,14 @@ test("defaults new entries to complete and keeps library quick filters functiona
   assert.match(source, /navigate\("library", \{ filter: "idea"/);
   assert.match(source, /navigate\("library", \{ filter: "review"/);
   assert.match(source, /filter:\s*"favorite"/);
-  assert.match(source, /className="status-segmented"/);
+  assert.match(source, /className="status-slider"/);
+  assert.match(source, /layoutId="entry-status-slider"/);
+  assert.match(
+    source,
+    /status === "complete"[\s\S]{0,900}已完成[\s\S]{0,900}status === "draft"/,
+  );
   assert.doesNotMatch(source, /value=\{draft\.status\}/);
-  assert.match(styles, /\.status-segmented button\.selected/);
+  assert.match(styles, /\.status-slider-thumb/);
+  assert.match(styles, /\.status-slider button\.selected/);
   assert.match(styles, /\.sidebar-section button\.selected/);
 });

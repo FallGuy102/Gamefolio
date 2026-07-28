@@ -2979,23 +2979,23 @@ button:active {
   gap: 4px;
 }
 
-.status-segmented {
+.status-slider {
   display: inline-grid;
   grid-template-columns: 1fr 1fr;
   gap: 2px;
   padding: 2px;
-  border-radius: 11px;
+  border-radius: 999px;
   background: var(--surface-muted);
 }
 
-.status-segmented button {
+.status-slider button {
+  position: relative;
   display: inline-flex;
   min-height: 34px;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 6px 11px;
-  border-radius: 9px;
+  padding: 6px 13px;
+  border-radius: 999px;
   background: transparent;
   color: var(--secondary);
   font-size: 0.75rem;
@@ -3003,19 +3003,33 @@ button:active {
   white-space: nowrap;
 }
 
-.status-segmented button svg {
+.status-slider-label {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-slider button svg {
   color: var(--tertiary);
 }
 
-.status-segmented button.selected {
+.status-slider-thumb {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   background: var(--surface-solid);
-  color: var(--text);
   box-shadow:
     0 1px 4px rgba(0, 0, 0, 0.13),
     inset 0 0 0 0.5px color-mix(in srgb, var(--line-strong) 65%, transparent);
 }
 
-.status-segmented button.selected svg {
+.status-slider button.selected {
+  color: var(--text);
+}
+
+.status-slider button.selected svg {
   color: var(--accent);
 }
 
@@ -3681,11 +3695,11 @@ body:has(.share-shell) {
     flex-direction: column;
   }
 
-  .status-segmented {
+  .status-slider {
     width: 100%;
   }
 
-  .status-segmented button {
+  .status-slider button {
     min-height: 42px;
   }
 

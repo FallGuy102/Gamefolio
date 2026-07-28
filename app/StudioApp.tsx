@@ -1843,18 +1843,7 @@ function Editor({
         <div className="editor-footer">
           <div className="status-control">
             <span>状态</span>
-            <div className="status-segmented" role="group" aria-label="条目状态">
-              <button
-                type="button"
-                className={draft.status === "draft" ? "selected" : ""}
-                aria-pressed={draft.status === "draft"}
-                onClick={() =>
-                  setDraft((current) => ({ ...current, status: "draft" }))
-                }
-              >
-                <FileText size={14} />
-                草稿
-              </button>
+            <div className="status-slider" role="group" aria-label="条目状态">
               <button
                 type="button"
                 className={draft.status === "complete" ? "selected" : ""}
@@ -1863,8 +1852,45 @@ function Editor({
                   setDraft((current) => ({ ...current, status: "complete" }))
                 }
               >
-                <CircleCheck size={14} />
-                已完成
+                {draft.status === "complete" && (
+                  <motion.span
+                    className="status-slider-thumb"
+                    layoutId="entry-status-slider"
+                    transition={
+                      reduceMotion
+                        ? { duration: 0.08 }
+                        : { type: "spring", bounce: 0, duration: 0.34 }
+                    }
+                  />
+                )}
+                <span className="status-slider-label">
+                  <CircleCheck size={14} />
+                  已完成
+                </span>
+              </button>
+              <button
+                type="button"
+                className={draft.status === "draft" ? "selected" : ""}
+                aria-pressed={draft.status === "draft"}
+                onClick={() =>
+                  setDraft((current) => ({ ...current, status: "draft" }))
+                }
+              >
+                {draft.status === "draft" && (
+                  <motion.span
+                    className="status-slider-thumb"
+                    layoutId="entry-status-slider"
+                    transition={
+                      reduceMotion
+                        ? { duration: 0.08 }
+                        : { type: "spring", bounce: 0, duration: 0.34 }
+                    }
+                  />
+                )}
+                <span className="status-slider-label">
+                  <FileText size={14} />
+                  草稿
+                </span>
               </button>
             </div>
           </div>

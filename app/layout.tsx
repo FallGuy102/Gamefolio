@@ -27,8 +27,13 @@ export async function generateMetadata(): Promise<Metadata> {
       title: "Gamefolio",
     },
     icons: {
-      icon: "/icon.png",
-      apple: "/icon.png",
+      icon: [
+        { url: "/favicon.svg", type: "image/svg+xml" },
+        { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      ],
+      apple: [
+        { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      ],
     },
     openGraph: {
       title: "Gamefolio · 游戏设计灵感库",

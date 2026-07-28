@@ -133,8 +133,17 @@ test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => 
     ),
     readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
   ]);
+  await Promise.all([
+    access(new URL("../public/icon.svg", import.meta.url)),
+    access(new URL("../public/icon-192.png", import.meta.url)),
+    access(new URL("../public/icon.png", import.meta.url)),
+    access(new URL("../public/apple-touch-icon.png", import.meta.url)),
+    access(new URL("../public/favicon.svg", import.meta.url)),
+  ]);
   assert.match(manifest, /display:\s*"standalone"/);
-  assert.match(serviceWorker, /gamefolio-v1/);
+  assert.match(manifest, /icon-192\.png/);
+  assert.match(manifest, /purpose:\s*"maskable"/);
+  assert.match(serviceWorker, /gamefolio-v2/);
   assert.match(source, /IndexedDB|saveOfflineDraft/);
   assert.match(source, /saveQueueRef/);
   assert.match(migration, /enable row level security/i);

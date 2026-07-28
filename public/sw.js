@@ -1,5 +1,15 @@
-const CACHE = "gamefolio-v1";
-const SHELL = ["/", "/library", "/entries/new", "/settings", "/manifest.webmanifest"];
+const CACHE = "gamefolio-v2";
+const SHELL = [
+  "/",
+  "/library",
+  "/entries/new",
+  "/settings",
+  "/manifest.webmanifest",
+  "/favicon.svg",
+  "/icon-192.png",
+  "/icon.png",
+  "/apple-touch-icon.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).catch(() => undefined));

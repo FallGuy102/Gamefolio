@@ -54,15 +54,26 @@ test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => 
 });
 
 test("reuses active share links until the user explicitly revokes them", async () => {
-  const [shareRoute, server, source] = await Promise.all([
+  const [shareRoute, publicRoute, imageRoute, server, source] = await Promise.all([
     readFile(new URL("../app/api/shares/route.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL("../app/api/public/share/[token]/route.ts", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../app/api/images/[id]/route.ts", import.meta.url),
+      "utf8",
+    ),
     readFile(new URL("../app/lib/server.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(shareRoute, /if \(active\.data\)/);
   assert.match(shareRoute, /status:\s*200/);
-  assert.match(shareRoute, /shareToken\(active\.data\.id\)/);
-  assert.match(server, /gamefolio-share:/);
+  assert.match(shareRoute, /path:\s*`\/s\/\$\{active\.data\.id\}`/);
+  assert.match(publicRoute, /isUuid\(token\)/);
+  assert.match(publicRoute, /token_hash/);
+  assert.match(imageRoute, /isUuid\(shareToken\)/);
+  assert.match(server, /export function isUuid/);
   assert.match(source, /重新生成链接/);
 });
 

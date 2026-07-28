@@ -29,22 +29,10 @@ export async function sha256(value: string): Promise<string> {
   ).join("");
 }
 
-export async function shareToken(shareId: string): Promise<string> {
-  const secret = process.env.SUPABASE_SECRET_KEY;
-  if (!secret) throw new Error("缺少 SUPABASE_SECRET_KEY");
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
+export function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
   );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(`gamefolio-share:${shareId}`),
-  );
-  return Buffer.from(signature).toString("base64url");
 }
 
 export function cleanText(value: unknown, max = 10000): string {

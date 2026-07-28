@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/app/lib/supabase/admin";
-import { cleanText, requireUser, sha256 } from "@/app/lib/server";
+import { cleanText, isUuid, requireUser, sha256 } from "@/app/lib/server";
 
 export const dynamic = "force-dynamic";
 
@@ -10,13 +10,19 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const admin = createAdminClient();
     const image = await admin.from("entry_images").select("*").eq("id", id).maybeSingle();
     if (!image.data) return new Response("Not found", { status: 404 });
-    const share = await admin
+    let shareQuery = admin
       .from("share_links")
       .select("id")
       .eq("entry_id", image.data.entry_id)
-      .eq("token_hash", await sha256(shareToken))
-      .is("revoked_at", null)
-      .maybeSingle();
+      .is("revoked_at", null);
+    shareQuery = isUuid(shareToken)
+      ? shareQuery.eq("id", shareToken)
+      : shareQuery.eq("token_hash", await sha256(shareToken));
+    const share = await shareQuery.maybeSingle();
+    if (share.error) {
+      console.error("Shared image authorization failed", share.error);
+      return new Response("Unable to authorize shared image", { status: 500 });
+    }
     if (!share.data) return new Response("Forbidden", { status: 403 });
     return downloadImage(admin, image.data, true);
   }

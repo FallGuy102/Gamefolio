@@ -1,4 +1,4 @@
-import { requireUser, sha256, shareToken } from "@/app/lib/server";
+import { requireUser, sha256 } from "@/app/lib/server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
 
   const active = await supabase
     .from("share_links")
-    .select("id, token_hash")
+    .select("id")
     .eq("entry_id", input.entryId)
     .is("revoked_at", null)
     .order("created_at", { ascending: false })
@@ -23,32 +23,21 @@ export async function POST(request: Request) {
     return Response.json({ error: "读取分享链接失败" }, { status: 500 });
   }
   if (active.data) {
-    const existingToken = await shareToken(active.data.id);
-    if ((await sha256(existingToken)) === active.data.token_hash) {
-      return Response.json(
-        { token: existingToken, path: `/s/${existingToken}` },
-        { status: 200 },
-      );
-    }
-
-    // Legacy links used one-way random tokens and cannot be reconstructed.
-    // Convert them once; subsequent requests reuse the deterministic token.
-    await supabase
-      .from("share_links")
-      .update({ revoked_at: new Date().toISOString() })
-      .eq("id", active.data.id);
+    return Response.json(
+      { token: active.data.id, path: `/s/${active.data.id}` },
+      { status: 200 },
+    );
   }
 
   const id = crypto.randomUUID();
-  const token = await shareToken(id);
   const result = await supabase.from("share_links").insert({
     id,
     entry_id: input.entryId,
     user_id: user.id,
-    token_hash: await sha256(token),
+    token_hash: await sha256(id),
   });
   if (result.error) return Response.json({ error: "创建分享链接失败" }, { status: 500 });
-  return Response.json({ token, path: `/s/${token}` }, { status: 201 });
+  return Response.json({ token: id, path: `/s/${id}` }, { status: 201 });
 }
 
 export async function DELETE(request: Request) {

@@ -820,11 +820,36 @@ function NavButton({
   onClick: () => void;
 }) {
   const Icon = icon;
+  const reduceMotion = useReducedMotion();
   return (
-    <button className={active ? "active" : ""} onClick={onClick}>
-      <span aria-hidden="true"><Icon size={19} strokeWidth={active ? 2.35 : 1.9} /></span>
-      {label}
-    </button>
+    <motion.button
+      className={active ? "active" : ""}
+      onClick={onClick}
+      aria-current={active ? "page" : undefined}
+      whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+      transition={
+        reduceMotion
+          ? { duration: 0 }
+          : { type: "spring", bounce: 0, duration: 0.22 }
+      }
+    >
+      {active && (
+        <motion.span
+          className="liquid-tab-selection"
+          layoutId="mobile-liquid-tab-selection"
+          transition={
+            reduceMotion
+              ? { duration: 0.08, ease: "easeOut" }
+              : { type: "spring", bounce: 0, duration: 0.36 }
+          }
+          aria-hidden="true"
+        />
+      )}
+      <span className="nav-icon" aria-hidden="true">
+        <Icon size={20} strokeWidth={active ? 2.3 : 1.9} />
+      </span>
+      <span className="nav-label">{label}</span>
+    </motion.button>
   );
 }
 

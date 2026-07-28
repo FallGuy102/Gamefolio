@@ -74,6 +74,18 @@ test("ships the adaptive Apple visual system and accessible fallbacks", async ()
     styles,
     /\.detail-pane \.editor-header[\s\S]{0,260}border-radius:\s*14px/,
   );
+  assert.match(
+    await readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    /layoutId="mobile-liquid-tab-selection"/,
+  );
+  assert.match(
+    styles,
+    /\.liquid-tab-selection[\s\S]{0,900}will-change:\s*transform/,
+  );
+  assert.match(
+    styles,
+    /\.bottom-nav[\s\S]{0,1200}backdrop-filter:\s*blur\(34px\)\s*saturate\(190%\)/,
+  );
 });
 
 test("ships Supabase auth, RLS migration, PWA, and offline drafts", async () => {

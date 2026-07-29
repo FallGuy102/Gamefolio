@@ -160,6 +160,8 @@ const sectionLabels: Record<string, string> = Object.fromEntries(
 const isReferenceLink = (section: ReviewSection) =>
   section.kind === REFERENCE_LINK_KIND;
 
+const reviewSectionKinds = new Set(reviewTemplate.map((section) => section.kind));
+
 const createReferenceLinkSection = (): ReviewSection => ({
   id: `new-link-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   kind: REFERENCE_LINK_KIND,
@@ -1104,7 +1106,12 @@ function EntryRow({
         </div>
         <p>
           {entry.body ||
-            entry.sections.find((section) => section.content)?.content ||
+            (entry.type === "review"
+              ? entry.sections.find(
+                  (section) =>
+                    !isReferenceLink(section) && section.content.trim(),
+                )?.content
+              : undefined) ||
             "还没有写下正文"}
         </p>
         <div className="entry-meta">
@@ -1279,7 +1286,7 @@ function Editor({
                         (section) => section.kind === template.kind,
                       ) ?? { ...template },
                   )
-                : []),
+                : entry.sections.filter((section) => !isReferenceLink(section))),
               ...entry.sections.filter(isReferenceLink),
             ],
           version: entry.version,
@@ -1463,21 +1470,35 @@ function Editor({
   }, [editing, payload.title, payload.body, payloadFingerprint, save]);
 
   const changeType = (type: EntryType) => {
+    if (draft.type === type) return;
+    if (
+      draft.type === "review" &&
+      type === "idea" &&
+      draft.sections?.some(
+        (section) => !isReferenceLink(section) && section.content.trim(),
+      )
+    ) {
+      onToast("复盘内容已保留，切回游戏复盘即可继续编辑");
+    }
     setDraft((current) => ({
       ...current,
       type,
       sections:
-        [
-          ...(type === "review"
-            ? reviewTemplate.map(
+        type === "review"
+          ? [
+              ...reviewTemplate.map(
                 (section) =>
                   current.sections?.find(
                     (item) => item.kind === section.kind,
                   ) ?? { ...section },
-              )
-            : []),
-          ...(current.sections?.filter(isReferenceLink) ?? []),
-        ],
+              ),
+              ...(current.sections?.filter(
+                (section) =>
+                  isReferenceLink(section) ||
+                  !reviewSectionKinds.has(section.kind),
+              ) ?? []),
+            ]
+          : current.sections,
     }));
   };
 
@@ -1645,9 +1666,10 @@ function Editor({
             </section>
           )}
 
-          {!!draft.sections?.filter(
-            (section) => !isReferenceLink(section) && section.content.trim(),
-          ).length && (
+          {draft.type === "review" &&
+            !!draft.sections?.filter(
+              (section) => !isReferenceLink(section) && section.content.trim(),
+            ).length && (
             <section className="detail-sections">
               <div className="content-divider">
                 <span>复盘笔记</span>
@@ -2581,6 +2603,7 @@ function Settings({
                 ? `- [${link.title || href}](${href})`
                 : "";
             }
+            if (entry.type !== "review") return "";
             return `## ${sectionLabels[section.kind] ?? section.kind}\n\n${section.content}`;
           })
           .filter(Boolean)

@@ -266,3 +266,19 @@ test("shows the app icon, labels favorites clearly, and persists safe reference 
   assert.match(styles, /\.reference-link-editor-row/);
   assert.match(styles, /\.reference-link-card:active/);
 });
+
+test("preserves review fields when entry types are switched", async () => {
+  const [source, shared] = await Promise.all([
+    readFile(new URL("../app/StudioApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/SharedEntry.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(source, /type === "idea"[\s\S]{0,500}复盘内容已保留/);
+  assert.match(source, /:\s*current\.sections/);
+  assert.match(
+    source,
+    /entry\.type === "review"[\s\S]{0,500}entry\.sections\.filter/,
+  );
+  assert.match(source, /if \(entry\.type !== "review"\) return ""/);
+  assert.match(shared, /entry\.type === "review"/);
+});

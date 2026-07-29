@@ -59,14 +59,15 @@ export function SharedEntry({ token }: { token: string }) {
           {entry.tags.map((tag) => <span key={tag}>#{tag}</span>)}
         </div>
         {entry.body && <p className="shared-lead">{entry.body}</p>}
-        {entry.sections.filter(
-          (section) => section.kind !== REFERENCE_LINK_KIND && section.content,
-        ).map((section) => (
-          <section className="shared-section" key={section.kind}>
-            <h2>{labels[section.kind] ?? section.kind}</h2>
-            <p>{section.content}</p>
-          </section>
-        ))}
+        {entry.type === "review" &&
+          entry.sections.filter(
+            (section) => section.kind !== REFERENCE_LINK_KIND && section.content,
+          ).map((section) => (
+            <section className="shared-section" key={section.kind}>
+              <h2>{labels[section.kind] ?? section.kind}</h2>
+              <p>{section.content}</p>
+            </section>
+          ))}
         {entry.sections.some((section) => {
           if (section.kind !== REFERENCE_LINK_KIND) return false;
           return Boolean(safeReferenceUrl(parseReferenceLink(section).url));
